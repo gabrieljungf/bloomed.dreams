@@ -147,4 +147,40 @@
   background-color: rgb(42, 40, 52);
 }
 
+/* --- n8n Chat Widget Custom Styles --- */
+
+/* Style the chat header */
+.n8n-chat-widget .n8n-chat-header {
+  background-color: #581c87; /* Dark Purple */
+  color: #e9d5ff; /* Light Purple Text */
+  border-bottom: 1px solid #a855f7; /* Medium Purple Border */
+}
+
+/* Style the default chat bubble button (bottom right) */
+.n8n-chat-launcher {
+  background-color: #9333ea !important; /* Medium Purple */
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.5); /* Your button glow */
+}
+.n8n-chat-launcher:hover {
+   background-color: #a855f7 !important; /* Lighter Purple on hover */
+   box-shadow: 0 0 25px rgba(168, 85, 247, 0.7);
+}
+.n8n-chat-launcher svg {
+  fill: #ffffff !important; /* White icon */
+}
+
+/* Style the user's message bubbles */
+.n8n-chat-widget .n8n-chat-message-bubble.user {
+  background-color: #9333ea; /* Medium Purple */
+  color: #ffffff; /* White text */
+}
+
+/* Style the agent's (bot) message bubbles */
+.n8n-chat-widget .n8n-chat-message-bubble.agent {
+  background-color: #581c87; /* Dark Purple */
+  color: #e9d5ff; /* Light Purple Text */
+}
+
+/* --- End n8n Chat Widget Custom Styles --- */
+
   

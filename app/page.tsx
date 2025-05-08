@@ -1,41 +1,52 @@
+// FILE: src/app/page.tsx (Or wherever your Home component is)
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { PageBackground } from '@/components/page-background';
 import { Logo } from '@/components/brand/logo';
 import { motion } from 'framer-motion';
+import { ChatWidget, ChatToggleButton } from '@/components/chat/chat-widget'; // Adjust path if needed
 
 export default function Home() {
   const [dream, setDream] = useState('');
-  const [interpretation, setInterpretation] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [dreamToPass, setDreamToPass] = useState<string | null>(null);
 
+  // --- Modified function for the main "Decode my Dream" button ---
   async function handleInterpret() {
-    setLoading(true);
-    setError(null);
-    setInterpretation(null);
-    try {
-      const response = await fetch('/api/interpret-dream', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ dream }),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to get interpretation');
-      }
-      const data = await response.json();
-      setInterpretation(data.interpretation);
-    } catch (err: any) {
-      setError(err.message || 'Unknown error');
-    } finally {
-      setLoading(false);
-    }
+    const trimmedDream = dream.trim();
+    if (!trimmedDream) return; // Don't do anything if empty
+
+    console.log('Passing dream to chat widget:', trimmedDream);
+    setDreamToPass(trimmedDream); // Set the dream text to pass
+    setIsChatOpen(true);        // Open the chat widget
+    setDream('');              // Clear the main textarea
+    // No API call here anymore
   }
+
+  // Effect to clear dreamToPass after chat opens to prevent re-triggering on simple reopen
+  // Optional: depends if you want re-submission on reopen without new main button click
+  useEffect(() => {
+      if (isChatOpen && dreamToPass) {
+          // Clear it shortly after opening so it doesn't re-process if user closes/reopens chat
+          const timer = setTimeout(() => setDreamToPass(null), 100);
+          return () => clearTimeout(timer);
+      }
+  }, [isChatOpen, dreamToPass])
+
+  const handleToggleClick = () => {
+      setDreamToPass(null); // Garante que não passe sonho se aberto pelo botão
+      setIsChatOpen(true);
+  }
+
+  const handleCloseChat = () => {
+      console.log('handleCloseChat function called'); // Added this log
+      console.log('Closing chat, setting isChatOpen to false');
+      setIsChatOpen(false);
+  }
+
 
   return (
     <PageBackground>
@@ -43,23 +54,21 @@ export default function Home() {
       <div className="absolute top-6 right-6 z-20">
         <Link
           href="/login"
-          className="text-purple-300/80 hover:text-purple-300 text-sm font-light transition-colors"
+          className="text-purple-300/80 hover:text-purple-300 text-xs font-light transition-colors"
         >
           Already have an account? Sign in
         </Link>
       </div>
 
       {/* Main content */}
-      <div className="relative z-10 max-w-4xl mx-auto px-4 flex flex-col h-screen justify-center items-center text-center">
-        <motion.div 
+      <div className="relative z-10 max-w-4xl mx-auto px-4 flex flex-col min-h-screen pt-6 pb-28 items-center text-center">
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="mb-6 flex flex-col items-center"
+          className="mb-12 flex flex-col items-center"
         >
           <Logo />
-          {/* Apenas uma vez a tagline */}
-          <p className="mt-2 text-sm text-purple-300/70 tracking-widest font-light"> </p>
         </motion.div>
 
         <div className="w-full max-w-3xl mx-auto">
@@ -69,7 +78,6 @@ export default function Home() {
             transition={{ duration: 0.8, delay: 0.2 }}
             className="mb-10"
           >
-            {/* Formato original restaurado */}
             <h2 className="text-[42px] leading-tight tracking-wide text-gray-200/90 font-light font-display">
               Your dreams are encrypted messages.
               <br />
@@ -77,8 +85,8 @@ export default function Home() {
             </h2>
           </motion.div>
 
-          {/* Input e botão */}
-          <motion.div 
+          {/* Input and button */}
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.5 }}
@@ -89,74 +97,62 @@ export default function Home() {
               onChange={(e) => setDream(e.target.value)}
               placeholder="Type your dream here..."
               rows={5}
-              className="w-full rounded-md border text-xs border-purple-600/40 bg-purple-900/15 p-4 text-white placeholder-purple-300/85 focus:outline-none focus:ring-2 focus:ring-purple-500/60 focus:border-transparent"
+              className="w-full rounded-md border text-xs font-light border-purple-600/40 bg-purple-900/15 p-4 text-white placeholder-purple-300/85 focus:outline-none focus:ring-2 focus:ring-purple-500/60 focus:border-transparent"
+              // Optional: Add Enter key submission to trigger handleInterpret
+              onKeyDown={(e) => {
+                 if (e.key === 'Enter' && !e.shiftKey) {
+                     e.preventDefault();
+                     handleInterpret();
+                 }
+               }}
             />
-            
-            {/* Ajuste o espaçamento entre a caixa e o botão (mt-6 para mais espaço) */}
-            <div className="mt-16">
+
+            {/* Main Decode Button */}
+            <div className="mt-6"> {/* Adjusted margin */}
               <Button
                 onClick={handleInterpret}
-                disabled={loading || dream.trim() === ''}
-                // Botão com glow místico (sem usar cn)
-                className="w-full bg-purple-700 hover:bg-purple-700 py-3 font-medium transition-all duration-300 shadow-[0_0_15px_rgba(168,85,247,0.5)] hover:shadow-[0_0_25px_rgba(168,85,247,0.7)] bg-purple-900/50 disabled:text-purple-300/50 disabled:shadow-none"
+                disabled={dream.trim() === ''} // Disable only based on dream input
+                className="w-full bg-purple-700 hover:bg-purple-700 py-3 font-medium transition-all duration-300 shadow-[0_0_15px_rgba(168,85,247,0.5)] hover:shadow-[0_0_25px_rgba(168,85,247,0.7)] bg-purple-900/50 disabled:bg-purple-900/30 disabled:text-purple-300/50 disabled:shadow-none disabled:cursor-not-allowed" // Adjusted disabled style
               >
-                {loading ? 'Interpreting...' : 'Decode my Dream'}
+                {/* Button text is now static */}
+                Decode my Dream
               </Button>
             </div>
 
-            <div className="text-center space-y-1">
-              <p className="text-center text-2xs text-purple-300/80 mt-5">AI + Jungian Psychology</p>
+            <div className="text-center space-y-1 pt-4"> {/* Added padding-top */}
+              <p className="text-center text-2xs text-purple-300/80">AI + Jungian Psychology</p>
               <p className="text-center text-2xs text-purple-300/80">No login. No tracking. Just meaning.</p>
             </div>
-
-            {error && (
-              <p className="text-red-500 text-sm font-medium">{error}</p>
-            )}
-
-            {interpretation && (
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="mt-6 rounded-md border border-purple-600/40 bg-purple-900/30 p-5 text-left text-white"
-              >
-                <h3 className="mb-3 text-lg font-semibold">Interpretation</h3>
-                <p className="text-base leading-relaxed">{interpretation}</p>
-                <div className="mt-5 flex space-x-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      navigator.clipboard.writeText(interpretation);
-                    }}
-                    className="border-purple-500/30 text-purple-200 hover:bg-purple-800/30"
-                  >
-                    Copy
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      alert('Share or subscribe feature coming soon!');
-                    }}
-                    className="border-purple-500/30 text-purple-200 hover:bg-purple-800/30"
-                  >
-                    Share
-                  </Button>
-                </div>
-              </motion.div>
-            )}
           </motion.div>
         </div>
       </div>
 
-      {/* Script para ajuste de altura em telas pequenas */}
-      <script dangerouslySetInnerHTML={{
+      {/* Render the Chat Toggle Button */}
+      {!isChatOpen && ( // Only show toggle button if chat is closed
+           <ChatToggleButton onClick={() => {
+               console.log('Chat toggle button clicked, setting isChatOpen to true');
+               setDreamToPass(null); // Ensure no dream is passed if opened via button
+               setIsChatOpen(true);
+           }} />
+      )}
+
+
+      {/* Render the Chat Widget, controlled by state */}
+      {/* It will render itself based on isOpenProp */}
+      <ChatWidget
+        isOpenProp={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        initialDream={dreamToPass}
+      />
+
+      {/* Viewport height script (Keep as is) */}
+       <script dangerouslySetInnerHTML={{
         __html: `
           document.addEventListener('DOMContentLoaded', function() {
             const adjustViewport = () => {
               const vh = window.innerHeight * 0.01;
               document.documentElement.style.setProperty('--vh', \`\${vh}px\`);
             };
-            
             window.addEventListener('resize', adjustViewport);
             adjustViewport();
           });

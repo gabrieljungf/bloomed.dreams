@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/components/auth-provider';
 import { cn } from '@/lib/utils';
+import Script from 'next/script'; // <--- ADD THIS LINE
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -30,6 +31,29 @@ export default async function RootLayout({
             {children}
           </AuthProvider>
         </ThemeProvider>
+        <script
+        id="n8n-chat-options"
+        dangerouslySetInnerHTML={{
+          __html: `
+            window.n8nChatOptions = {
+              // IMPORTANT: Paste your Agent ID here!
+              agentId: 'YOUR_N8N_AGENT_ID_HERE',
+
+              // --- Optional Basic Theme Settings ---
+              // theme: {
+              //    primaryColor: '#9333ea', // Example: A purple color
+              //    font: { family: 'inherit' }
+              // }
+              // --- End Optional Basic Theme ---
+            };
+          `,
+        }}
+      />
+      <Script
+        strategy="lazyOnload" // Loads the script after the page is interactive
+        src="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/esm/chat.mjs"
+      />
+      {/* END: n8n Chat Widget Code */} 
       </body>
     </html>
   );
