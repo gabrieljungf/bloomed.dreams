@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { PageBackground } from '@/components/page-background';
 import { Logo } from '@/components/brand/logo';
 import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 import { ChatWidget, ChatToggleButton } from '@/components/chat/chat-widget'; // Adjust path if needed
 
 export default function Home() {
@@ -57,7 +58,7 @@ export default function Home() {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="mb-12 flex flex-col items-center"
+          className="mb-8 md:mb-12 flex flex-col items-center"
         >
           <Logo />
         </motion.div>
@@ -67,9 +68,24 @@ export default function Home() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="mb-10"
+            className="mb-8 md:mb-10"
           >
-            <h2 className="text-[42px] leading-tight tracking-wide text-gray-200/90 font-light font-display">
+            <h2 className={cn(
+              // --- Classes de Tamanho Responsivas ---
+              "text-2xl",         // Mobile: font-size: 24px
+              "sm:text-3xl",      // SM: font-size: 30px
+              "md:text-4xl",      // MD: font-size: 36px
+              "lg:text-[42px]",   // LG: font-size: 42px
+
+              // --- Classes de Line Height Responsivas ---
+              // Para mobile e SM, um line-height um pouco mais generoso pode ser bom
+              "leading-snug",     // Base (24px * 1.375 = 33px) (30px * 1.375 = 41.25px)
+              // Para MD e LG, queremos replicar o 'leading-tight' que você tinha com 42px
+              "md:leading-tight", // MD: (36px * 1.25 = 45px) LG: (42px * 1.25 = 52.5px)
+
+              // --- Outros Estilos Visuais ---
+              "tracking-wide text-gray-200/90 font-light font-display"
+            )}>
               Your dreams are encrypted messages.
               <br />
               We help you decode them.
