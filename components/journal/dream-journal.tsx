@@ -7,7 +7,7 @@ import { DreamGrid } from './dream-grid';
 import { BackgroundEffects } from '@/components/background-effects';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -15,10 +15,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { TagSelector } from './tag-selector';
+import type { DateRange } from 'react-day-picker'; // <-- Importar DateRange
+import type { SelectRangeEventHandler } from 'react-day-picker'; // <-- Importar SelectRangeEventHandler
 
 export function DreamJournal() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDates, setSelectedDates] = useState<Date[]>([]);
+  // Mudar o estado para DateRange
+  const [selectedDateRange, setSelectedDateRange] = useState<DateRange | undefined>(undefined);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
@@ -28,13 +31,16 @@ export function DreamJournal() {
     setSearchQuery(query);
   };
 
-  const handleDateSelect = (dates: Date[] | undefined) => {
-    setSelectedDates(dates || []);
+  // Ajustar a função para lidar com DateRange
+  // O tipo SelectRangeEventHandler é (range: DateRange | undefined, selectedDay: Date, activeModifiers: ActiveModifiers, e?: React.MouseEvent | React.KeyboardEvent) => void
+  // Para o useState, geralmente só precisamos do primeiro argumento (o range).
+  const handleDateRangeSelect: SelectRangeEventHandler = (range) => {
+    setSelectedDateRange(range);
   };
 
   const handleTagSelect = (tag: string) => {
-    setSelectedTags(prev => 
-      prev.includes(tag) 
+    setSelectedTags(prev =>
+      prev.includes(tag)
         ? prev.filter(t => t !== tag)
         : [...prev, tag]
     );
@@ -66,7 +72,7 @@ export function DreamJournal() {
           </p>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
@@ -74,7 +80,7 @@ export function DreamJournal() {
         >
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-300/50" />
-            <Input 
+            <Input
               placeholder="Search your dreams..."
               className="pl-10 bg-black/40 border-purple-500/20 text-purple-100 h-8 placeholder:text-xs"
               value={searchQuery}
@@ -89,17 +95,19 @@ export function DreamJournal() {
                 className="bg-black/40 border-purple-500/20 text-purple-200 hover:bg-purple-500/10 h-8 font-light text-xs"
               >
                 <Calendar className="w-3 h-3 mr-2" />
+                {/* Você pode querer atualizar este texto para mostrar o range selecionado */}
                 Date
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="bg-black/95 border-purple-500/20 p-4 w-auto">
               <DateRangePicker
-                selected={selectedDates}
-                onSelect={handleDateSelect}
+                selectedRange={selectedDateRange} // <-- Usar prop e estado corretos
+                onRangeSelect={handleDateRangeSelect} // <-- Usar prop e handler corretos
               />
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Restante do seu componente... */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -110,7 +118,7 @@ export function DreamJournal() {
                 Tags {selectedTags.length > 0 && `(${selectedTags.length})`}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent 
+            <DropdownMenuContent
               className="bg-black/95 border-purple-500/20"
               onCloseAutoFocus={(e) => e.preventDefault()}
             >
@@ -135,13 +143,13 @@ export function DreamJournal() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="bg-black/95 border-purple-500/20">
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={() => setSortOrder('newest')}
                 className="text-xs"
               >
                 Newest First
               </DropdownMenuItem>
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={() => setSortOrder('oldest')}
                 className="text-xs"
               >
@@ -158,7 +166,9 @@ export function DreamJournal() {
         >
           <DreamGrid
             searchQuery={searchQuery}
-            selectedDate={selectedDates[0]}
+            selectedDate={selectedDateRange?.from} // Passa apenas a data de início
+            // Ou selectedDate={undefined} se não houver data de início,
+            // ou alguma outra lógica dependendo do que 'selectedDate' significa para DreamGrid
             selectedTags={selectedTags}
             sortOrder={sortOrder}
           />
