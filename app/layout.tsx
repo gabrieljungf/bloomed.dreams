@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Marcellus, Cormorant_Garamond } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/components/auth-provider';
 import { Analytics } from "@vercel/analytics/next"
@@ -10,8 +10,21 @@ import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
 
+const cormorantGaramond = Cormorant_Garamond({
+  subsets: ['latin'],
+  weight: ['400', '700'], // Escolha os pesos que você vai usar (ex: regular e bold)
+  variable: '--font-cormorant-garamond', // Variável CSS para sua nova fonte display
+});
+
+const marcellus = Marcellus({
+  subsets: ['latin'],
+  weight: ['400'], // Marcellus no Google Fonts geralmente só oferece '400'
+  variable: '--font-marcellus', // Variável CSS para sua nova fonte display
+  display: 'swap', // Boa prática para performance
+});
+
 export const metadata: Metadata = {
-  title: 'Bloomed Dreams - Dream Interpretation and Analysis Platform',
+  title: 'bloomed dreams. - Your Dream Interpreter',
   description: 'Unlock the mysteries of your dreams with AI-powered analysis',
 };
 
@@ -21,7 +34,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={`${marcellus.variable} ${cormorantGaramond.variable}`}>
       <body className={cn(inter.className, 'custom-scrollbar')}>
         <ThemeProvider
           attribute="class"

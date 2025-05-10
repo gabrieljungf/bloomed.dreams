@@ -50,15 +50,6 @@ export default function Home() {
 
   return (
     <PageBackground>
-      {/* Login link */}
-      <div className="absolute top-6 right-6 z-20">
-        <Link
-          href="/login"
-          className="text-purple-300/80 hover:text-purple-300 text-xs font-light transition-colors"
-        >
-          Already have an account? Sign in
-        </Link>
-      </div>
 
       {/* Main content */}
       <div className="relative z-10 max-w-4xl mx-auto px-4 flex flex-col min-h-screen pt-6 pb-28 items-center text-center">

@@ -17,6 +17,11 @@ const config: Config = {
       },
     },
     extend: {
+      fontFamily: { // <--- ADICIONE ESTA SEÇÃO
+        sans: ['var(--font-inter)', 'sans-serif'], // Assumindo que você já tem --font-inter do layout.tsx
+        'display-cormorant': ['var(--font-cormorant-garamond)', 'serif'],
+        'display-marcellus': ['var(--font-marcellus)', 'serif'],
+      },
       fontSize: {
         '2xs': '0.625rem', // 10px
       },
