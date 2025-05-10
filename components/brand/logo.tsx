@@ -47,7 +47,6 @@ export function Logo({
           "text-4xl",                     // Base para mobile (ex: 30px)
           "sm:text-5xl",                  // Para telas 'sm' e acima (ex: 36px)
           "md:text-6xl",                  // Para telas 'md' e acima (ex: 48px)
-          "lg:text-[58px]",            // Opcional para telas ainda maiores se text-5xl não for suficiente
           "bg-gradient-to-r from-purple-300/90 via-purple-400/90 to-purple-300/90 text-transparent bg-clip-text",
           "tracking-tight",               // Tracking 'tight' pode ser bom para títulos grandes
           displayFontClass,               // Aplica font-display-marcellus

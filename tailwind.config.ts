@@ -24,7 +24,7 @@ const config: Config = {
       },
       fontSize: {
         '2xs': '0.625rem', // 10px
-        '3xs': '0.5rem',   // 8px (novo, exemplo)
+        '3xs': '0.55rem',   // 8px (novo, exemplo)
       },
       colors: {
         border: "hsl(var(--border))",
