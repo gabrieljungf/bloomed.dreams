@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/components/auth-provider';
+import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import { cn } from '@/lib/utils';
 import Script from 'next/script'; // <--- ADD THIS LINE
 import './globals.css';
@@ -53,7 +55,9 @@ export default async function RootLayout({
         strategy="lazyOnload" // Loads the script after the page is interactive
         src="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/esm/chat.mjs"
       />
-      {/* END: n8n Chat Widget Code */} 
+      {/* END: n8n Chat Widget Code */}
+      <SpeedInsights />
+      <Analytics /> 
       </body>
     </html>
   );
