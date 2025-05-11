@@ -58,7 +58,7 @@ export default function Home() {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="mb-8 md:mb-12 flex flex-col items-center"
+          className="mb-12 flex flex-col items-center"
         >
           <Logo />
         </motion.div>
@@ -68,11 +68,11 @@ export default function Home() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="mb-8 md:mb-10"
+            className="mb-10"
           >
             <h2 className={cn(
               // --- Classes de Tamanho Responsivas ---
-              "text-2xl",         // Mobile: font-size: 24px
+              "text-[20px]",         // Mobile: font-size: 24px
               "sm:text-3xl",      // SM: font-size: 30px
               "md:text-4xl",      // MD: font-size: 36px
               "lg:text-[42px]",   // LG: font-size: 42px
