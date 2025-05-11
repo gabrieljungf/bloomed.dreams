@@ -72,7 +72,7 @@ export default function Home() {
           >
             <h2 className={cn(
               // --- Classes de Tamanho Responsivas ---
-              "text-[20px]",         // Mobile: font-size: 24px
+              "text-[30px]",         // Mobile: font-size: 24px
               "sm:text-3xl",      // SM: font-size: 30px
               "md:text-4xl",      // MD: font-size: 36px
               "lg:text-[42px]",   // LG: font-size: 42px
@@ -103,7 +103,7 @@ export default function Home() {
   value={dream}
   onChange={(e) => setDream(e.target.value)}
   placeholder="Type your dream here..."
-  rows={3} // Reduzir rows para mobile também pode ajudar
+  rows={5} // Reduzir rows para mobile também pode ajudar
   className={cn(
     "w-full rounded-md border p-4 text-white placeholder-purple-300/85",
     "focus:outline-none focus:ring-2 focus:ring-purple-500/60 focus:border-transparent",
