@@ -72,7 +72,7 @@ export default function Home() {
           >
             <h2 className={cn(
               // --- Classes de Tamanho Responsivas ---
-              "text-[30px]",         // Mobile: font-size: 24px
+              "text-[28px]",         // Mobile: font-size: 24px
               "sm:text-3xl",      // SM: font-size: 30px
               "md:text-4xl",      // MD: font-size: 36px
               "lg:text-[42px]",   // LG: font-size: 42px
