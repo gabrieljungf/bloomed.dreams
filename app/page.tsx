@@ -100,11 +100,17 @@ export default function Home() {
             className="w-full max-w-md mx-auto space-y-4"
           >
             <textarea
-              value={dream}
-              onChange={(e) => setDream(e.target.value)}
-              placeholder="Type your dream here..."
-              rows={5}
-              className="w-full rounded-md border text-xs font-light border-purple-600/40 bg-purple-900/15 p-4 text-white placeholder-purple-300/85 focus:outline-none focus:ring-2 focus:ring-purple-500/60 focus:border-transparent"
+  value={dream}
+  onChange={(e) => setDream(e.target.value)}
+  placeholder="Type your dream here..."
+  rows={3} // Reduzir rows para mobile também pode ajudar
+  className={cn(
+    "w-full rounded-md border p-4 text-white placeholder-purple-300/85",
+    "focus:outline-none focus:ring-2 focus:ring-purple-500/60 focus:border-transparent",
+    "bg-purple-900/15 border-purple-600/40",
+    // Ajuste de fonte responsivo:
+    "text-base sm:text-xs font-light" // text-base (16px) para mobile, text-xs (12px) para sm e acima
+  )}
               // Optional: Add Enter key submission to trigger handleInterpret
               onKeyDown={(e) => {
                  if (e.key === 'Enter' && !e.shiftKey) {
