@@ -9,6 +9,7 @@ import { X, Send, Loader2, Moon, Sparkles, Copy, Heart, Mic, Link as LinkIcon } 
 import { toast } from "sonner";
 import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { cn } from '@/lib/utils';
 import { v4 as uuidv4 } from 'uuid'; 
 
 // Interfaces (mantidas como no seu último código)
@@ -477,14 +478,22 @@ export function ChatWidget({
           {/* Input Form */}
           <form onSubmit={handleChatSubmit} className="sticky bottom-0 z-10 border-t border-[#9d6bff]/20 bg-gradient-to-t from-[#2a1a46]/80 to-[#2a1a46]/50 backdrop-blur-sm">
             <div className="p-4 flex items-end gap-3">
-              {/* Use TextareaAutosize */}
-                <TextareaAutosize
+              <TextareaAutosize
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Describe your dream..."
-                className="flex-grow bg-[#1e1133]/60 text-base sm:text-sm border border-[#9d6bff]/30 text-[#e0d1ff] placeholder-[#c4a8ff]/50 resize-none focus:ring-2 focus:ring-[#9d6bff]/50 focus:border-[#9d6bff]/50 focus:outline-none text-sm py-2.5 px-4 rounded-3xl shadow-inner scrollbar-thin scrollbar-thumb-[#9d6bff]/30 scrollbar-track-transparent transition-colors duration-200"
+                className={cn(
+                  "flex-grow resize-none shadow-inner scrollbar-thin scrollbar-thumb-[#9d6bff]/30 scrollbar-track-transparent transition-colors duration-200",
+                  "bg-[#1e1133]/60 border border-[#9d6bff]/30 text-[#e0d1ff] placeholder-[#c4a8ff]/50",
+                  "focus:ring-2 focus:ring-[#9d6bff]/50 focus:border-[#9d6bff]/50 focus:outline-none",
+                  "py-2.5 px-4 rounded-3xl",
+                  // --- AJUSTE DE TAMANHO DE FONTE RESPONSIVO ---
+                  "text-base", // Base para mobile (16px para evitar zoom)
+                  "sm:text-sm"  // Em telas 'sm' e maiores, pode reduzir para text-sm (14px) se desejar
+                                // Ou sm:text-xs se quiser ainda menor em telas maiores
+                )}
                 minRows={1}
-                maxRows={5} // Limit height expansion
+                maxRows={5}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
