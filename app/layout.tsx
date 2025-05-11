@@ -24,7 +24,7 @@ const marcellus = Marcellus({
 });
 
 export const metadata: Metadata = {
-  title: 'bloomed dreams. - Your Dream Interpreter',
+  title: 'bloomed dreams | Your Dream Interpreter',
   description: 'Unlock the mysteries of your dreams with AI-powered analysis',
 };
 
