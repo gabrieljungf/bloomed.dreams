@@ -44,10 +44,6 @@
   }
 }
 
-.font-display {
-  font-family: 'Clash Display', system-ui, -apple-system, sans-serif;
-}
-
 .dashboard-card {
   @apply relative;
   backdrop-filter: blur(8px);

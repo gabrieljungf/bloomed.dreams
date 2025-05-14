@@ -84,7 +84,7 @@ export default function Home() {
               "md:leading-tight", // MD: (36px * 1.25 = 45px) LG: (42px * 1.25 = 52.5px)
 
               // --- Outros Estilos Visuais ---
-              "tracking-wide text-gray-200/90 font-light font-display"
+              "tracking-wide text-gray-200/90 font-extralight font-display"
             )}>
               Your dreams are encrypted messages.
               <br />
@@ -102,7 +102,7 @@ export default function Home() {
             <textarea
   value={dream}
   onChange={(e) => setDream(e.target.value)}
-  placeholder="Type your dream here..."
+  placeholder="Describe your dream here..."
   rows={5} // Reduzir rows para mobile também pode ajudar
   className={cn(
     "w-full rounded-md border p-4 text-white placeholder-purple-300/85",

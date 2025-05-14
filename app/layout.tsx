@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter, Marcellus, Cormorant_Garamond } from 'next/font/google';
+import { Inter, Marcellus, Cormorant_Garamond, Manrope } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/components/auth-provider';
 import { Analytics } from "@vercel/analytics/next"
@@ -23,6 +23,13 @@ const marcellus = Marcellus({
   display: 'swap', // Boa prática para performance
 });
 
+const manrope = Manrope({
+  subsets: ['latin'],
+  weight: ['200', '300', '400'], // Escolha os pesos que você vai usar (ex: regular e bold)
+  variable: '--font-manrope', // Variável CSS para sua nova fonte display~
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
   title: 'bloomed dreams | Your Dream Interpreter',
   description: 'Unlock the mysteries of your dreams with AI-powered analysis',
@@ -34,7 +41,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${marcellus.variable} ${cormorantGaramond.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${marcellus.variable} ${cormorantGaramond.variable} ${manrope.variable}`}>
       <body className={cn(inter.className, 'custom-scrollbar')}>
         <ThemeProvider
           attribute="class"
