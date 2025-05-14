@@ -84,7 +84,7 @@ export default function Home() {
               "md:leading-tight", // MD: (36px * 1.25 = 45px) LG: (42px * 1.25 = 52.5px)
 
               // --- Outros Estilos Visuais ---
-              "tracking-wide text-gray-200/90 font-extralight font-display"
+              "tracking-wide text-gray-200/90 font-light font-display"
             )}>
               Your dreams are encrypted messages.
               <br />
