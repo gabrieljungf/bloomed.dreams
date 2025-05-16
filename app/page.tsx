@@ -85,7 +85,7 @@ export default function Home() {
             <h2 className={cn(
               "text-[26px]", "sm:text-3xl", "md:text-4xl", "lg:text-[42px]",
               "leading-snug", "md:leading-tight",
-              "tracking-wide text-gray-200/90 font-extralight font-display"
+              "tracking-wide text-gray-200/90 font-light font-display"
             )}>
               Your dreams are encrypted messages.
               <br />
