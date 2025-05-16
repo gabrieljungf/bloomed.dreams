@@ -108,7 +108,7 @@ export default function Home() {
                 "w-full rounded-md border p-4 text-white placeholder-purple-300/85",
                 "focus:outline-none focus:ring-2 focus:ring-purple-500/60 focus:border-transparent",
                 "bg-purple-900/15 border-purple-600/40",
-                "text-base sm:text-xs font-light"
+                "text-base sm:text-xs font-extralight"
               )}
               onKeyDown={(e) => {
                  if (e.key === 'Enter' && !e.shiftKey) {
