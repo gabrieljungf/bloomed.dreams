@@ -15,7 +15,7 @@ import { v4 as uuidv4 } from 'uuid';
 interface Message {
   id: string;
   text: string;
-  isUser: boolean;
+  isUser: boolean; // Correctly cased here
   timestamp: Date;
 }
 
@@ -55,7 +55,8 @@ const customMarkdownComponents: Components = {
   },
 };
 
-export function ChatWidget({
+
+export function ChatWidget({ // This component is exported
   isOpenProp,
   onClose,
   initialDream
@@ -70,8 +71,6 @@ export function ChatWidget({
   const abortControllerRef = useRef<AbortController | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
-  // --- REMOVED useEffect that manipulated body/html overflow ---
-  // We will rely on overscroll-behavior-contain on the message list div
 
   useEffect(() => {
     if (isOpenProp && !sessionId) {
@@ -79,9 +78,6 @@ export function ChatWidget({
       setSessionId(newSessionId);
       console.log("ChatWidget: Generated new sessionId:", newSessionId);
     }
-    // If chat is closing, we might want to clear session ID if it's not meant to persist across closures for background tasks
-    // For now, sessionId persists while component instance is alive.
-    // If it unmounts (due to AnimatePresence), sessionId will reset on next mount.
   }, [isOpenProp, sessionId]);
 
   const scrollToBottom = useCallback(() => {
@@ -148,7 +144,6 @@ export function ChatWidget({
 
       if (controller.signal.aborted) {
         console.log(`ChatWidget: sendDreamToAPI - Request aborted during fetch for userMessageId: ${userMessageId}.`);
-        // isLoading and abortControllerRef.current will be handled in finally
         return;
       }
       console.log(`ChatWidget: sendDreamToAPI - API response status: ${response.status}`);
@@ -205,60 +200,59 @@ export function ChatWidget({
         ]);
       }
     } finally {
-      console.log(`ChatWidget: sendDreamToAPI - Finally block. Current controller is ${abortControllerRef.current === controller ? 'SAME' : 'DIFFERENT/NULL'}. Controller signal aborted: ${controller.signal.aborted}`);
+      console.log(`ChatWidget: sendDreamToAPI - Finally block. Current controller is ${abortControllerRef.current === controller ? 'SAME' : 'DIFFERENT/NULL'}. This request's controller signal aborted: ${controller.signal.aborted}`);
       if (abortControllerRef.current === controller) {
          setIsLoading(false);
          abortControllerRef.current = null;
          console.log("ChatWidget: sendDreamToAPI - Finally: isLoading set to false, current abortController cleared.");
       } else {
-         console.log("ChatWidget: sendDreamToAPI - Finally: Active controller changed or nulled by close; not changing isLoading for this old request.");
+         console.log("ChatWidget: sendDreamToAPI - Finally: Active controller was different; not changing isLoading or abortControllerRef for this old/aborted request.");
       }
     }
-  }, [sessionId, isLoading]); // Added isLoading to dep array for the initial check, though it's mostly for the if condition inside.
+  }, [sessionId]);
 
   useEffect(() => {
-    // Welcome message logic
-    if (isOpenProp && messages.length === 0 && !initialDream && !processedInitialDream) {
-      console.log("ChatWidget: Displaying welcome message.");
-      setMessages([
-        {
-          id: "welcome",
-          text: "Welcome to the **Dream Decoder**! ✨ Share your dream, and let's explore its hidden depths together.",
-          isUser: false,
-          timestamp: new Date(),
-        },
-      ]);
-      setProcessedInitialDream(null);
-      setLikedMessages(new Set());
+    console.log(`ChatWidget: useEffect[isOpenProp] changed. isOpenProp: ${isOpenProp}. Current isLoading: ${isLoading}, processedInitialDream: "${processedInitialDream}", messages.length: ${messages.length}, initialDream: "${initialDream}"`);
+    if (!isOpenProp) {
+      console.log("ChatWidget: useEffect[isOpenProp] - Closing. AbortController was:", abortControllerRef.current ? "active" : "null");
+    } else {
+      if (messages.length === 0 && !initialDream && !processedInitialDream) {
+        console.log("ChatWidget: useEffect[isOpenProp] - Opening, displaying welcome message.");
+        setMessages([
+          {
+            id: "welcome",
+            text: "Welcome to the **Dream Decoder**! ✨ Share your dream, and let's explore its hidden depths together.",
+            isUser: false,
+            timestamp: new Date(),
+          },
+        ]);
+        setProcessedInitialDream(null);
+        setLikedMessages(new Set());
+      }
+      if (initialDream && initialDream !== processedInitialDream && sessionId) {
+        console.log(`ChatWidget: useEffect[isOpenProp] - Opening, processing initialDream: "${initialDream}".`);
+        const userMessageId = `user-initial-${Date.now()}`;
+        const newUserMessage: Message = {
+          id: userMessageId, text: initialDream, isUser: true, timestamp: new Date()
+        };
+        setMessages(prev => {
+           const filtered = prev.filter(msg => msg.id !== 'welcome');
+           return [...filtered, newUserMessage];
+        });
+        setProcessedInitialDream(initialDream);
+        setMessage("");
+        sendDreamToAPI(initialDream, userMessageId);
+      } else if (initialDream && initialDream === processedInitialDream) {
+          console.log(`ChatWidget: useEffect[isOpenProp] - Opening, initialDream ("${initialDream}") is same as processedInitialDream. Not re-processing.`);
+      }
     }
-  }, [isOpenProp, initialDream, messages.length, processedInitialDream]);
-
-  useEffect(() => {
-    // Initial dream processing logic
-    if (isOpenProp && initialDream && initialDream !== processedInitialDream && sessionId) {
-      console.log(`ChatWidget: Processing initialDream: "${initialDream}". Current processedInitialDream: "${processedInitialDream}"`);
-      const userMessageId = `user-initial-${Date.now()}`;
-      const newUserMessage: Message = {
-        id: userMessageId, text: initialDream, isUser: true, timestamp: new Date()
-      };
-      setMessages(prev => {
-         const filtered = prev.filter(msg => msg.id !== 'welcome');
-         return [...filtered, newUserMessage];
-      });
-      setProcessedInitialDream(initialDream); // Mark as processed (or started processing)
-      setMessage("");
-      sendDreamToAPI(initialDream, userMessageId);
-    } else if (isOpenProp && initialDream && initialDream === processedInitialDream) {
-        console.log(`ChatWidget: initialDream ("${initialDream}") is same as processedInitialDream. Not re-processing.`);
-    }
-  }, [isOpenProp, initialDream, processedInitialDream, sendDreamToAPI, sessionId]);
+  }, [isOpenProp, initialDream, processedInitialDream, sessionId, messages.length, sendDreamToAPI, isLoading]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
   useEffect(() => {
-    // Cleanup abort controller on component unmount
     return () => {
       if (abortControllerRef.current) {
         console.log("ChatWidget: Unmounting, aborting active request.");
@@ -275,28 +269,27 @@ export function ChatWidget({
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    setIsLoading(false); // Explicitly set isLoading to false as the widget is closing.
+    setIsLoading(false);
     console.log("ChatWidget: isLoading set to false by handleClose.");
-    // If an initial dream was being processed and gets aborted by closing,
-    // reset processedInitialDream so it can be re-attempted if reopened with the same initialDream prop.
-    // However, page.tsx's logic to nullify initialDream on close might make this less critical.
     if (initialDream && processedInitialDream === initialDream) {
-        console.log("ChatWidget: handleClose - initialDream was processed or being processed. Resetting processedInitialDream to allow re-processing if widget reopens with same initialDream prop (if Home doesn't clear it first).");
-        // setProcessedInitialDream(null); // Let Home.tsx manage clearing initialDream prop. If it's still there on re-open, then it might re-process.
-                                       // This is complex. For now, rely on Home.tsx clearing dreamToPass.
+        console.log("ChatWidget: handleClose - initialDream was the one being processed. Current value of initialDream prop: ", initialDream);
     }
-
     onClose();
     console.log("ChatWidget: onClose prop has been called by handleClose.");
-  }, [onClose, isLoading, initialDream, processedInitialDream]); // Added dependencies
+  }, [onClose, isLoading, initialDream, processedInitialDream]);
 
   const handleChatSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     console.log(`ChatWidget: handleChatSubmit. isLoading: ${isLoading}, message: "${message.trim()}"`);
     const trimmedMessage = message.trim();
-    if (!trimmedMessage || isLoading) {
-      if (!trimmedMessage) toast.info("Please describe your dream first.");
-      if (isLoading) console.log("ChatWidget: handleChatSubmit - bailing, isLoading is true.");
+
+    if (isLoading) {
+        console.log("ChatWidget: handleChatSubmit - bailing, isLoading is true.");
+        toast.info("Please wait, previous request is processing.");
+        return;
+    }
+    if (!trimmedMessage) {
+      toast.info("Please describe your dream first.");
       return;
     }
     if (!sessionId) {
@@ -304,11 +297,12 @@ export function ChatWidget({
       console.log("ChatWidget: handleChatSubmit - bailing, no sessionId.");
       return;
     }
+
     const userMessageId = `user-${Date.now()}`;
-    const newMessage: Message = {
+    const newMessageInstance: Message = {
       id: userMessageId, text: trimmedMessage, isUser: true, timestamp: new Date()
     };
-    setMessages((prev) => [...prev, newMessage]);
+    setMessages((prev) => [...prev, newMessageInstance]);
     setMessage("");
     await sendDreamToAPI(trimmedMessage, userMessageId);
   }, [message, isLoading, sendDreamToAPI, sessionId]);
@@ -319,28 +313,49 @@ export function ChatWidget({
     }));
   }, []);
 
-  // Log isLoading whenever it changes
   useEffect(() => {
     console.log(`ChatWidget: isLoading state changed to: ${isLoading}`);
   }, [isLoading]);
+
+  // This log is fine as it's outside the JSX return
+  console.log("ChatWidget RENDER: isLoading =", isLoading, "message =", message, "isOpenProp =", isOpenProp, "initialDream =", initialDream, "processedInitialDream=", processedInitialDream);
+
+  // Helper for JSX logging - returns null so it's a valid ReactNode
+  const jsxLog = (logMessage: string, ...args: any[]): null => {
+    console.log(logMessage, ...args);
+    return null;
+  };
 
   return (
     <AnimatePresence>
       {isOpenProp && (
         <motion.div
-          key="chatWidgetRoot" // Ensure a consistent key for AnimatePresence direct child
+          key="chatWidgetRoot"
           className="fixed right-2 bottom-2 sm:right-6 sm:bottom-6 z-[100] w-[90vw] sm:w-[21rem] h-[85vh] sm:h-[550px] max-h-[calc(100vh-3rem)] rounded-2xl border border-[#9d6bff]/20 overflow-hidden flex flex-col bg-gradient-to-br from-[#1e1133] to-[#2a1a46]/95 shadow-[#9d6bff]/30 shadow-2xl backdrop-blur-lg"
-          initial={{ opacity: 0, y: 50, scale: 0.9 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 50, scale: 0.9, transition: { duration: 0.2 } }}
-          transition={{ type: "spring", stiffness: 260, damping: 25 }}
+          /* ---------- ENTRADA ---------- */
+          initial={{ opacity: 0, y: 50, scale: 0.9, display: 'flex' }}
+          animate={{
+            opacity: 1,
+            y: 0,
+            scale: 1,
+            display: 'flex',         // garante que volta a aparecer
+            pointerEvents: 'auto',   // ← *** volta a aceitar cliques ***
+          }}
+          /* ---------- SAÍDA ---------- */
+          exit={{
+            opacity: 0,
+            y: 50,
+            scale: 0.9,
+            transition: { duration: 0.25 },
+            transitionEnd: {
+              pointerEvents: 'none', // bloqueia cliques só DEPOIS da animação
+              display: 'none',       // remove do fluxo
+            },
+          }}
         >
-          {/* Stars background */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
             {stars.map(({ key, style }) => ( <div key={key} className="absolute rounded-full bg-white/70 animate-twinkle" style={style} /> ))}
           </div>
-
-          {/* Header */}
           <div className="relative flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3 border-b border-[#9d6bff]/20 z-10 flex-shrink-0 bg-gradient-to-b from-[#2a1a46]/80 to-[#2a1a46]/50 backdrop-blur-sm">
             <div className="flex items-center gap-2.5">
               <div className="p-1.5 bg-gradient-to-br from-[#9d6bff]/30 to-[#c4a8ff]/20 rounded-full shadow-inner">
@@ -353,15 +368,14 @@ export function ChatWidget({
             </Button>
           </div>
 
-          {/* Message List - Added overscroll-behavior-contain */}
           <div className="relative flex-grow overflow-y-auto p-4 space-y-4 z-10 scrollbar-thin scrollbar-thumb-[#9d6bff]/40 hover:scrollbar-thumb-[#9d6bff]/60 scrollbar-track-transparent overscroll-behavior-contain">
             {messages.map((msg) => (
-              <motion.div key={msg.id} layout="position" initial={{ opacity: 0, y: 15, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 260, damping: 20 } }} className={`flex ${msg.isUser ? "justify-end" : "justify-start"}`}>
-                <div id={msg.id} className={`group relative max-w-[85%] px-3 py-2 rounded-3xl text-xs leading-relaxed shadow-md ${msg.isUser ? "bg-gradient-to-br from-[#a87aff] to-[#8a5ae0] text-white rounded-tr-none" : "bg-[#351d5e] border border-[#9d6bff]/20 text-[#e0d1ff] rounded-tl-none"} ${msg.id.startsWith('error-') ? 'border-red-500/40' : '' }`} style={{ boxShadow: msg.isUser ? "0 3px 10px rgba(157, 107, 255, 0.3)" : "0 2px 8px rgba(0, 0, 0, 0.2)", overflowWrap: 'break-word' }}>
+              <motion.div key={msg.id} layout="position" initial={{ opacity: 0, y: 15, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 260, damping: 20 } }} className={`flex ${msg.isUser ? "justify-end" : "justify-start"}`}> {/* CORRECTED: msg.isUser */}
+                <div id={msg.id} className={`group relative max-w-[85%] px-3 py-2 rounded-3xl text-xs leading-relaxed shadow-md ${msg.isUser ? "bg-gradient-to-br from-[#a87aff] to-[#8a5ae0] text-white rounded-tr-none" : "bg-[#351d5e] border border-[#9d6bff]/20 text-[#e0d1ff] rounded-tl-none"} ${msg.id.startsWith('error-') ? 'border-red-500/40' : '' }`} style={{ boxShadow: msg.isUser ? "0 3px 10px rgba(157, 107, 255, 0.3)" : "0 2px 8px rgba(0, 0, 0, 0.2)", overflowWrap: 'break-word' }}> {/* CORRECTED: msg.isUser */}
                   <div className={`prose prose-sm prose-invert max-w-none ${msg.id.startsWith('error-') ? 'prose-p:text-red-300/90' : ''}`}>
                       <ReactMarkdown remarkPlugins={[remarkGfm]} components={customMarkdownComponents}>{msg.text}</ReactMarkdown>
                   </div>
-                  {!msg.isUser && (
+                  {!msg.isUser && ( /* CORRECTED: !msg.isUser */
                     <div className={`mt-2 pt-1.5 border-t ${msg.id.startsWith('error-') ? 'border-red-500/20' : 'border-[#9d6bff]/20'} flex justify-between items-center text-[9px] text-[#c4a8ff]/70`}>
                       <span>{msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                       {!msg.id.startsWith('error-') && (
@@ -377,7 +391,7 @@ export function ChatWidget({
                       )}
                     </div>
                   )}
-                  {msg.isUser && ( <p className="text-[9px] text-white/60 mt-1.5 text-right">{msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p> )}
+                  {msg.isUser && ( <p className="text-[9px] text-white/60 mt-1.5 text-right">{msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p> )} {/* CORRECTED: msg.isUser */}
                 </div>
               </motion.div>
             ))}
@@ -393,10 +407,12 @@ export function ChatWidget({
             )}
             <div ref={messagesEndRef} className="h-1" />
           </div>
-
-          {/* Input Form */}
+          
+          {/* CORRECTED JSX LOGGING APPROACH */}
+          {jsxLog("ChatWidget FORM RENDER: isLoading =", isLoading, "message empty =", !message.trim())}
           <form onSubmit={handleChatSubmit} className="sticky bottom-0 z-10 border-t border-[#9d6bff]/20 bg-gradient-to-t from-[#2a1a46]/80 to-[#2a1a46]/50 backdrop-blur-sm">
             <div className="p-4 flex items-end gap-3">
+              {jsxLog("ChatWidget TEXTAREA RENDER: isLoading =", isLoading)}
               <TextareaAutosize
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
@@ -412,19 +428,19 @@ export function ChatWidget({
                 aria-label="Enter your dream description"
                 disabled={isLoading}
               />
+              {jsxLog("ChatWidget BUTTON RENDER: isLoading =", isLoading, "message empty =", !message.trim())}
               <Button type="submit" disabled={isLoading || !message.trim()} className="h-9 w-9 p-0 flex-shrink-0 bg-gradient-to-br from-[#8a5ae0] to-[#9d6bff] hover:from-[#7f4fe0] hover:to-[#8f5ae0] text-white disabled:bg-gradient-to-br disabled:from-[#5c4b8e]/70 disabled:to-[#5c4b8e]/70 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 rounded-3xl flex items-center justify-center shadow-md hover:shadow-lg hover:shadow-[#9d6bff]/30 disabled:shadow-none focus-visible:ring-2 focus-visible:ring-[#c4a8ff] focus-visible:ring-offset-2 focus-visible:ring-offset-[#2a1a46]" aria-label="Send dream">
                 {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
               </Button>
             </div>
           </form>
-          {/* Global styles removed for brevity */}
         </motion.div>
       )}
     </AnimatePresence>
   );
 }
 
-// ChatToggleButton remains the same
+// ChatToggleButton was missing from the previous full file, adding it back.
 export function ChatToggleButton({ onClick }: { onClick: () => void }) {
   return (
     <motion.button
