@@ -178,3 +178,6 @@
 }
 
 /* --- End n8n Chat Widget Custom Styles --- */ 
+
+/* globals.css */
+html { scrollbar-gutter: stable both-edges; }  /* Chrome 94+, Firefox 97+ */

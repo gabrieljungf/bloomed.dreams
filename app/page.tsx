@@ -1,58 +1,70 @@
 // FILE: src/app/page.tsx (Or wherever your Home component is)
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { PageBackground } from '@/components/page-background';
 import { Logo } from '@/components/brand/logo';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { ChatWidget, ChatToggleButton } from '@/components/chat/chat-widget'; // Adjust path if needed
+import { ChatWidget, ChatToggleButton } from '@/components/chat/chat-widget';
 
 export default function Home() {
   const [dream, setDream] = useState('');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [dreamToPass, setDreamToPass] = useState<string | null>(null);
 
-  // --- Modified function for the main "Decode my Dream" button ---
   async function handleInterpret() {
     const trimmedDream = dream.trim();
-    if (!trimmedDream) return; // Don't do anything if empty
+    if (!trimmedDream) return;
 
-    console.log('Passing dream to chat widget:', trimmedDream);
-    setDreamToPass(trimmedDream); // Set the dream text to pass
-    setIsChatOpen(true);        // Open the chat widget
-    setDream('');              // Clear the main textarea
-    // No API call here anymore
+    console.log('Home: Passing dream to chat widget:', trimmedDream);
+    setDreamToPass(trimmedDream);
+    setIsChatOpen(true);
+    setDream('');
   }
 
-  // Effect to clear dreamToPass after chat opens to prevent re-triggering on simple reopen
-  // Optional: depends if you want re-submission on reopen without new main button click
+  // Effect to clear dreamToPass after chat opens and it's been "sent"
   useEffect(() => {
-      if (isChatOpen && dreamToPass) {
-          // Clear it shortly after opening so it doesn't re-process if user closes/reopens chat
-          const timer = setTimeout(() => setDreamToPass(null), 100);
-          return () => clearTimeout(timer);
+    if (isChatOpen && dreamToPass) {
+      // Clear it shortly after opening so ChatWidget can pick it up,
+      // but it doesn't re-process if user closes/reopens chat without a new main button click.
+      const timer = setTimeout(() => {
+        console.log('Home: Clearing dreamToPass via timer (after chat open)');
+        setDreamToPass(null);
+      }, 150); // Give a moment for ChatWidget to consume it
+      return () => clearTimeout(timer);
+    }
+  }, [isChatOpen, dreamToPass]);
+
+  // Effect to ensure dreamToPass is cleared if the chat is closed
+  useEffect(() => {
+    if (!isChatOpen) {
+      if (dreamToPass !== null) { // Only update if necessary
+        console.log('Home: Chat is closed, ensuring dreamToPass is null.');
+        setDreamToPass(null);
       }
-  }, [isChatOpen, dreamToPass])
+    }
+  }, [isChatOpen, dreamToPass]); // Include dreamToPass in case it's set by other means while chat is closed (unlikely here but good practice)
+
 
   const handleToggleClick = () => {
-      setDreamToPass(null); // Garante que não passe sonho se aberto pelo botão
+      console.log('Home: Chat toggle button clicked (main page one, not used)');
+      setDreamToPass(null);
       setIsChatOpen(true);
-  }
+  };
 
-  const handleCloseChat = () => {
-      console.log('handleCloseChat function called'); // Added this log
-      console.log('Closing chat, setting isChatOpen to false');
+  const handleCloseChat = useCallback(() => {
+      console.log('Home: EXECUTANDO handleCloseChat no page.tsx, setting isChatOpen to false');
       setIsChatOpen(false);
-  }
+      // setDreamToPass(null); // Also ensure it's cleared here for immediate effect. Covered by above useEffect too.
+  }, []);
 
 
   return (
     <PageBackground>
-
-      {/* Main content */}
+      {/* Main content ... (no changes here, keeping it short) */}
       <div className="relative z-10 max-w-4xl mx-auto px-4 flex flex-col min-h-screen pt-6 pb-28 items-center text-center">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -71,20 +83,9 @@ export default function Home() {
             className="mb-10"
           >
             <h2 className={cn(
-              // --- Classes de Tamanho Responsivas ---
-              "text-[26px]",         // Mobile: font-size: 24px
-              "sm:text-3xl",      // SM: font-size: 30px
-              "md:text-4xl",      // MD: font-size: 36px
-              "lg:text-[42px]",   // LG: font-size: 42px
-
-              // --- Classes de Line Height Responsivas ---
-              // Para mobile e SM, um line-height um pouco mais generoso pode ser bom
-              "leading-snug",     // Base (24px * 1.375 = 33px) (30px * 1.375 = 41.25px)
-              // Para MD e LG, queremos replicar o 'leading-tight' que você tinha com 42px
-              "md:leading-tight", // MD: (36px * 1.25 = 45px) LG: (42px * 1.25 = 52.5px)
-
-              // --- Outros Estilos Visuais ---
-              "tracking-wide text-gray-200/90 font-light font-display"
+              "text-[26px]", "sm:text-3xl", "md:text-4xl", "lg:text-[42px]",
+              "leading-snug", "md:leading-tight",
+              "tracking-wide text-gray-200/90 font-extralight font-display"
             )}>
               Your dreams are encrypted messages.
               <br />
@@ -92,7 +93,6 @@ export default function Home() {
             </h2>
           </motion.div>
 
-          {/* Input and button */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -100,18 +100,16 @@ export default function Home() {
             className="w-full max-w-md mx-auto space-y-4"
           >
             <textarea
-  value={dream}
-  onChange={(e) => setDream(e.target.value)}
-  placeholder="Describe your dream here..."
-  rows={5} // Reduzir rows para mobile também pode ajudar
-  className={cn(
-    "w-full rounded-md border p-4 text-white placeholder-purple-300/85",
-    "focus:outline-none focus:ring-2 focus:ring-purple-500/60 focus:border-transparent",
-    "bg-purple-900/15 border-purple-600/40",
-    // Ajuste de fonte responsivo:
-    "text-base sm:text-xs font-light" // text-base (16px) para mobile, text-xs (12px) para sm e acima
-  )}
-              // Optional: Add Enter key submission to trigger handleInterpret
+              value={dream}
+              onChange={(e) => setDream(e.target.value)}
+              placeholder="Describe your dream here..."
+              rows={5}
+              className={cn(
+                "w-full rounded-md border p-4 text-white placeholder-purple-300/85",
+                "focus:outline-none focus:ring-2 focus:ring-purple-500/60 focus:border-transparent",
+                "bg-purple-900/15 border-purple-600/40",
+                "text-base sm:text-xs font-light"
+              )}
               onKeyDown={(e) => {
                  if (e.key === 'Enter' && !e.shiftKey) {
                      e.preventDefault();
@@ -119,20 +117,16 @@ export default function Home() {
                  }
                }}
             />
-
-            {/* Main Decode Button */}
-            <div className="mt-6"> {/* Adjusted margin */}
+            <div className="mt-6">
               <Button
                 onClick={handleInterpret}
-                disabled={dream.trim() === ''} // Disable only based on dream input
-                className="w-full bg-purple-700 hover:bg-purple-700 py-3 font-medium transition-all duration-300 shadow-[0_0_15px_rgba(168,85,247,0.5)] hover:shadow-[0_0_25px_rgba(168,85,247,0.7)] bg-purple-900/50 disabled:bg-purple-900/30 disabled:text-purple-300/50 disabled:shadow-none disabled:cursor-not-allowed" // Adjusted disabled style
+                disabled={dream.trim() === ''}
+                className="w-full bg-purple-700 hover:bg-purple-700 py-3 font-medium transition-all duration-300 shadow-[0_0_15px_rgba(168,85,247,0.5)] hover:shadow-[0_0_25px_rgba(168,85,247,0.7)] bg-purple-900/50 disabled:bg-purple-900/30 disabled:text-purple-300/50 disabled:shadow-none disabled:cursor-not-allowed"
               >
-                {/* Button text is now static */}
                 Decode my Dream
               </Button>
             </div>
-
-            <div className="text-center space-y-1 pt-4"> {/* Added padding-top */}
+            <div className="text-center space-y-1 pt-4">
               <p className="text-center text-2xs text-purple-300/80">AI + Jungian Psychology</p>
               <p className="text-center text-2xs text-purple-300/80">No login. No tracking. Just meaning.</p>
             </div>
@@ -140,25 +134,20 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Render the Chat Toggle Button */}
-      {!isChatOpen && ( // Only show toggle button if chat is closed
+      {!isChatOpen && (
            <ChatToggleButton onClick={() => {
-               console.log('Chat toggle button clicked, setting isChatOpen to true');
-               setDreamToPass(null); // Ensure no dream is passed if opened via button
+               console.log('Home: Chat toggle button clicked, setting isChatOpen to true, ensuring dreamToPass is null.');
+               setDreamToPass(null); // Explicitly nullify here for this open path
                setIsChatOpen(true);
            }} />
       )}
 
-
-      {/* Render the Chat Widget, controlled by state */}
-      {/* It will render itself based on isOpenProp */}
       <ChatWidget
         isOpenProp={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
+        onClose={handleCloseChat}
         initialDream={dreamToPass}
       />
 
-      {/* Viewport height script (Keep as is) */}
        <script dangerouslySetInnerHTML={{
         __html: `
           document.addEventListener('DOMContentLoaded', function() {
