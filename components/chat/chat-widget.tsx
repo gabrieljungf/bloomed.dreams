@@ -31,6 +31,7 @@ interface CosmicDreamDecoderProps {
 }
 
 const customMarkdownComponents: Components = {
+  // Seus componentes existentes:
   p: ({node, ...props}) => <p className="mb-1 last:mb-0" {...props} />,
   ul: ({node, ...props}) => <ul className="my-1 pl-4 list-disc" {...props} />,
   ol: ({node, ...props}) => <ol className="my-1 pl-4 list-decimal" {...props} />,
@@ -53,6 +54,18 @@ const customMarkdownComponents: Components = {
           </code>
       );
   },
+
+  // --- ADIÇÃO PARA ESTILIZAR LINKS ---
+  a: ({node, href, ...props}) => (
+    <a
+      href={href} // É importante passar o href para o elemento <a>
+      {...props} // Passa outras props como 'children' (o texto do link)
+      className="text-purple-400 hover:text-purple-300 font-semibold cursor-pointer"
+      target={href && (href.startsWith('http://') || href.startsWith('https://')) ? '_blank' : undefined}
+      rel={href && (href.startsWith('http://') || href.startsWith('https://')) ? 'noopener noreferrer' : undefined}
+    />
+  ),
+  // --- FIM DA ADIÇÃO PARA LINKS ---
 };
 
 
@@ -150,10 +163,39 @@ export function ChatWidget({ // This component is exported
 
       if (!response.ok) {
         let errorMsg = `API Error: ${response.status}`;
+        let responseDataForError: any = null;
         try {
-            const errorData = await response.json();
-            errorMsg = errorData.error || errorData.message || `Request Failed (${response.status})`;
-        } catch { /* Ignore parse error */ }
+            responseDataForError = await response.json();
+            errorMsg = responseDataForError?.error || responseDataForError?.message || `Request Failed (${response.status})`;
+        } catch (e) {
+            // Se o corpo do erro não for JSON, errorMsg já contém o status.
+            console.warn("ChatWidget: Could not parse error response as JSON for !response.ok.", e);
+        }
+
+        // --- TRATAMENTO ESPECÍFICO PARA RATE LIMIT (429) ---
+        if (response.status === 429) {
+          const serverErrorMessageForRateLimit = responseDataForError?.error || "You're sending messages too quickly! Please wait a moment.";
+          
+          const messageWithLinkInChat = `${serverErrorMessageForRateLimit} Want unlimited interpretations, a place to save your dreams, and a guide that’s always by your side? [Click here to join our waitlist!](/waitlist)`;
+          // ^^^ Certifique-se que /waitlist é o caminho correto ^^^
+
+          toast.error(serverErrorMessageForRateLimit); 
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `error-rate-limit-${userMessageId}`,
+              text: messageWithLinkInChat,
+              isUser: false,
+              timestamp: new Date(),
+            },
+          ]);
+          // setIsLoading(false); // O finally cuidará
+          return; // IMPORTANTE: Saia aqui para não executar o throw new Error abaixo
+        }
+        // --- FIM DO TRATAMENTO DE RATE LIMIT ---
+
+        // Se não for 429, mas ainda !response.ok, lance o erro para ser pego pelo catch principal
         throw new Error(errorMsg);
       }
 
