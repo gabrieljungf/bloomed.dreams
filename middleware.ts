@@ -6,28 +6,14 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
 
   // --- Proteção básica para /admin ---
-  const basicAuthPaths = ['/admin','/api/admin'];
-  const needsBasicAuth = basicAuthPaths.some((prefix) =>
-    req.nextUrl.pathname.startsWith(prefix)
-  );
+  if (
+    req.nextUrl.pathname.startsWith("/admin") &&
+    !req.nextUrl.pathname.startsWith("/admin/login")
+  ) {
+    const isAuthed = req.cookies.get("admin_authed")?.value === "true";
 
-  if (needsBasicAuth) {
-    const authHeader = req.headers.get('authorization');
-    const user = process.env.ADMIN_USER;
-    const pass = process.env.ADMIN_PASS;
-
-    if (!authHeader?.startsWith('Basic ')) {
-      return new Response('Authentication required', {
-        status: 401,
-        headers: { 'WWW-Authenticate': 'Basic realm="Secure Area"' },
-      });
-    }
-
-    const encoded = authHeader.split(' ')[1];
-    const [u, p] = atob(encoded).split(':');
-
-    if (u !== user || p !== pass) {
-      return new Response('Invalid credentials', { status: 403 });
+    if (!isAuthed) {
+      return NextResponse.redirect(new URL("/admin/login", req.url));
     }
   }
 
