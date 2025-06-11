@@ -174,12 +174,20 @@ export function ChatWidget({ // This component is exported
 
         // --- TRATAMENTO ESPECÍFICO PARA RATE LIMIT (429) ---
         if (response.status === 429) {
-          const serverErrorMessageForRateLimit = responseDataForError?.error || "You're sending messages too quickly! Please wait a moment.";
-          
-          const messageWithLinkInChat = `${serverErrorMessageForRateLimit} Want unlimited interpretations, a place to save your dreams, and a guide that’s always by your side? [Click here to join our waitlist!](/waitlist)`;
-          // ^^^ Certifique-se que /waitlist é o caminho correto ^^^
+          const scope = responseDataForError?.scope || '';
+          const fallback = responseDataForError?.error || "You've reached your usage limit.";
 
-          toast.error(serverErrorMessageForRateLimit); 
+          let userFriendlyMessage = fallback;
+
+          if (scope === 'hourly') {
+            userFriendlyMessage = "You’ve reached the hourly dream limit (5 per hour). Try again in a few minutes — your credits refill gradually.";
+          } else if (scope === 'daily') {
+            userFriendlyMessage = "You’ve reached the daily dream limit (10 per day). Come back tomorrow to continue exploring. ✨";
+          }
+
+          const messageWithLinkInChat = `${userFriendlyMessage} Want unlimited interpretations, a place to save your dreams, and a guide that’s always by your side? [Click here to join our waitlist!](/waitlist)`;
+
+          toast.error(userFriendlyMessage);
 
           setMessages((prev) => [
             ...prev,
@@ -190,8 +198,8 @@ export function ChatWidget({ // This component is exported
               timestamp: new Date(),
             },
           ]);
-          // setIsLoading(false); // O finally cuidará
-          return; // IMPORTANTE: Saia aqui para não executar o throw new Error abaixo
+
+          return;
         }
         // --- FIM DO TRATAMENTO DE RATE LIMIT ---
 

@@ -102,7 +102,7 @@ export default function Home() {
             <textarea
               value={dream}
               onChange={(e) => setDream(e.target.value)}
-              placeholder="Describe your dream here..."
+              placeholder="Describe your dream here, in any language..."
               rows={5}
               className={cn(
                 "w-full rounded-md border p-4 text-white placeholder-purple-300/85",

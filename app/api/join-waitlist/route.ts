@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     }
 
     // Nome da chave no Redis onde os emails serão armazenados (um conjunto)
-    const redisKeyForWaitlist = 'waitlist_bloomed_dreams';
+    const redisKeyForWaitlist = 'dreamchat:waitlist';
 
     // Adiciona o email ao conjunto no Redis
     // O comando 'sadd' adiciona o membro ao conjunto.
