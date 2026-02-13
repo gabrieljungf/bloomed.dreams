@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, Marcellus, Cormorant_Garamond, Manrope } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
-import { AuthProvider } from '@/components/auth-provider';
+import { AuthProvider } from '@/components/auth/auth-provider';
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { cn } from '@/lib/utils';

@@ -1,65 +1,110 @@
+// ARQUIVO ATUALIZADO: components/layouts/dashboard-nav.tsx
+
 "use client";
 
-import { useAuth } from '@/components/auth-provider';
 import { ProfileMenu } from '@/components/profile-menu';
-import { Menu, Moon, Plus } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { cn } from '@/lib/utils';
+import { HeaderLogo } from '@/components/brand/header-logo';
+import { motion } from 'framer-motion';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
-interface DashboardNavProps {
-  onMenuClick: () => void;
-}
+export function DashboardNav() {
+  const pathname = usePathname();
 
-export function DashboardNav({ onMenuClick }: DashboardNavProps) {
-  const { user } = useAuth();
+  const navLinks = [
+    { name: 'Dream Journal', href: '/dashboard' },
+    { name: 'Decoder', href: '/dashboard/decoder', soon: true },
+    { name: 'Blooming Path', href: '/dashboard/path', soon: true },
+  ];
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-white/10 backdrop-blur-sm bg-black/40">
-      <div className="h-16 px-4 sm:px-6 lg:px-8 mx-auto">
-        <div className="flex items-center justify-between h-full">
-          {/* Left section */}
-          <div className="flex items-center gap-4 flex-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden"
-              onClick={onMenuClick}
-            >
-              <Menu className="h-5 w-5 text-purple-300" />
-            </Button>
-            
-            <Link href="/dashboard" className="flex items-center gap-2 group">
-              <div className="relative w-8 h-8">
-                <div className="absolute inset-0 bg-gradient-to-r from-violet-500 to-indigo-500 rounded-full opacity-75 group-hover:opacity-100 transition-opacity" />
-                <div className="relative w-full h-full flex items-center justify-center">
-                  <Moon className="w-4 h-4 text-white" />
+    <header className="sticky top-0 z-50 border-b border-white/5 bg-gradient-to-b from-purple-950/40 to-black/80 backdrop-blur-sm">
+      {/* Container principal agora usa Grid no mobile e Flex no desktop */}
+      <div className="px-4 sm:px-6 h-14 sm:h-16 mx-auto grid grid-cols-3 items-center md:flex md:justify-between">
+        
+        {/* --- Seção Esquerda (Logo e Nav Desktop / Menu Mobile) --- */}
+        <div className="justify-self-start flex items-center gap-8">
+          {/* Menu Mobile */}
+          <div className="md:hidden">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="-ml-2">
+                  <Menu className="h-6 w-6 text-purple-200" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="bg-[#030014] border-r-white/10 p-0 w-[280px]">
+                <div className="p-4 border-b border-white/10">
+                    <HeaderLogo />
                 </div>
-              </div>
-              <span className="font-display text-lg text-white/90 tracking-wide hidden sm:inline">
-                BLOOMED DREAMS
-              </span>
-            </Link>
+                <nav className="flex flex-col gap-2 p-4">
+                    {navLinks.map((link) => (
+                      <Link 
+                        key={link.name} 
+                        href={link.href} 
+                        className={cn(
+                          "text-base p-3 rounded-md transition-colors",
+                          link.soon ? "text-purple-200/40 cursor-not-allowed" :
+                          pathname === link.href ? "text-purple-100 bg-purple-500/10" :
+                          "text-purple-200/70 hover:bg-purple-500/10"
+                        )} 
+                        onClick={(e) => { if (link.soon) e.preventDefault(); }}
+                      >
+                        {link.name}
+                        {link.soon && <span className="ml-2 text-[10px] bg-purple-500/15 px-1.5 py-0.5 rounded-full text-purple-300/60">soon</span>}
+                      </Link>
+                    ))}
+                </nav>
+              </SheetContent>
+            </Sheet>
           </div>
-
-          {/* Right section - using flex-1 to balance the left section */}
-          <div className="flex items-center justify-end gap-3 sm:gap-4 flex-1">
-            <Button 
-              onClick={() => {/* Will be connected to chat widget */}}
-              className="bg-gradient-to-r from-purple-500/80 to-indigo-500/80 
-                hover:from-purple-500/90 hover:to-indigo-500/90
-                text-white font-medium px-0.5 sm:px-6
-                rounded-full shadow-lg shadow-purple-500/20
-                hover:shadow-purple-500/30
-                transition-all duration-300 border border-white/10
-                hover:border-white/20 flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline whitespace-nowrap">Record Dream</span>
-            </Button>
-            <ProfileMenu />
+          
+          {/* Logo e Nav Desktop */}
+          <div className="hidden md:flex items-center gap-16">
+            <HeaderLogo />
+            <nav className="flex items-center gap-8">
+              {navLinks.map((link) => (
+                <Link 
+                  key={link.name} 
+                  href={link.href} 
+                  className={cn(
+                    "font-light transition-colors relative py-2 text-sm whitespace-nowrap",
+                    link.soon 
+                      ? "text-purple-200/40 cursor-not-allowed" 
+                      : pathname === link.href 
+                        ? "text-purple-100" 
+                        : "text-purple-200/75 hover:text-purple-200/95"
+                  )} 
+                  onClick={(e) => { if (link.soon) e.preventDefault(); }}
+                >
+                  {link.name}
+                  {link.soon && (
+                    <span className="ml-2 text-[10px] bg-purple-500/15 px-2 py-0.5 rounded-full text-purple-300/60">soon</span>
+                  )}
+                  {pathname === link.href && !link.soon && (
+                    <span
+                      className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1.5 w-1.5 rounded-full bg-purple-300/80"
+                    />
+                  )}
+                </Link>
+              ))}
+            </nav>
           </div>
         </div>
+
+        {/* --- Seção Central (Apenas para o Logo no Mobile) --- */}
+        <div className="justify-self-center md:hidden">
+          <HeaderLogo />
+        </div>
+
+        {/* --- Seção Direita (Ícone de Perfil) --- */}
+        <div className="justify-self-end">
+          <ProfileMenu />
+        </div>
       </div>
-    </nav>
+    </header>
   );
 }

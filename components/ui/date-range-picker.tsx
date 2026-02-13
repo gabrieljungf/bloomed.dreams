@@ -69,13 +69,13 @@ export function DateRangePicker({
         onSelect={onRangeSelect} // <-- Passar onRangeSelect
         numberOfMonths={numberOfMonths}
         locale={locale}
-        className={cn("rounded-md border-purple-500/20 bg-black/40", calendarClassName)}
+        className={cn("rounded-md border-purple-500/20 bg-black/40 w-full", calendarClassName)}
         classNames={{
           head_row: "flex",
-          head_cell: "text-purple-200/60 font-medium text-xs w-9 text-center",
+          head_cell: "text-purple-200/60 font-medium text-xs flex-1 text-center", // Use flex-1 for fluid width
           row: "flex w-full",
-          cell: "w-9 h-9 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-purple-500/20",
-          day: "h-9 w-9 p-0 font-normal text-purple-200/80",
+          cell: "flex-1 h-9 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-purple-500/20", // Use flex-1 for fluid width
+          day: "h-9 w-full p-0 font-normal text-purple-200/80", // Use w-full for day
           day_range_start: "rounded-l-md bg-purple-500/30",
           day_range_end: "rounded-r-md bg-purple-500/30",
           day_selected: "bg-purple-500/30 text-purple-100 hover:bg-purple-500/40",

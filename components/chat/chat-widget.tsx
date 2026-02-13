@@ -11,6 +11,8 @@ import ReactMarkdown, { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 import { v4 as uuidv4 } from 'uuid';
+import { useDreamStore } from "@/hooks/use-dream-store";
+import { useAuth } from "@/components/auth/auth-provider";
 
 interface Message {
   id: string;
@@ -83,6 +85,8 @@ export function ChatWidget({ // This component is exported
   const [processedInitialDream, setProcessedInitialDream] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const { addDream } = useDreamStore();
+  const { user } = useAuth();
 
 
   useEffect(() => {
@@ -207,26 +211,19 @@ export function ChatWidget({ // This component is exported
         throw new Error(errorMsg);
       }
 
-      const rawText = await response.text();
-      let parsedData: N8NRawResponse | null = null;
-      try {
-        parsedData = JSON.parse(rawText);
-      } catch (parseError) {
-        console.error("ChatWidget: Failed to parse API response:", parseError, "\nRaw Text:", rawText);
-        throw new Error("Received an invalid response format from the API.");
+      const responseData = await response.json();
+      const { interpretation, savedDream } = responseData;
+
+      if (user && savedDream) {
+        addDream(savedDream);
+        console.log("Dream added to the global store, triggering UI update.");
       }
 
-      if (parsedData?.error) {
-        throw new Error(parsedData.error);
-      }
-
-      const interpretation = parsedData?.output;
-      console.log("ChatWidget: sendDreamToAPI - Successfully got interpretation.");
       setMessages((prev) => [
         ...prev,
         {
           id: `bot-${userMessageId}`,
-          text: interpretation || "Hmm, I received a response, but couldn't extract a clear interpretation.",
+          text: interpretation || "Your dream has been saved to your journal.",
           isUser: false,
           timestamp: new Date(),
         },
@@ -259,7 +256,7 @@ export function ChatWidget({ // This component is exported
          console.log("ChatWidget: sendDreamToAPI - Finally: Active controller was different; not changing isLoading or abortControllerRef for this old/aborted request.");
       }
     }
-  }, [sessionId]);
+  }, [sessionId, addDream, user]);
 
   useEffect(() => {
     console.log(`ChatWidget: useEffect[isOpenProp] changed. isOpenProp: ${isOpenProp}. Current isLoading: ${isLoading}, processedInitialDream: "${processedInitialDream}", messages.length: ${messages.length}, initialDream: "${initialDream}"`);

@@ -1,7 +1,9 @@
+// ARQUIVO ATUALIZADO: components/profile-menu.tsx
+
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/components/auth-provider';
+import { useAuth } from '@/components/auth/auth-provider';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,24 +26,19 @@ export function ProfileMenu() {
 
   if (!user) return null;
   
-  // Get first letter of name or email
-  const getInitial = () => {
-    const name = user.user_metadata?.name || user.email || 'User';
-    return name.charAt(0).toUpperCase();
-  };
-  
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen} modal={false}>
       <DropdownMenuTrigger asChild>
+        {/* A MUDANÇA ESTÁ AQUI: Usando size="icon" que define h-10 w-10 */}
         <Button 
           variant="avatar"
-          className="relative h-10 w-10 rounded-full overflow-hidden border border-purple-500/20
+          size="icon" 
+          className="relative rounded-full overflow-hidden border border-purple-500/20
             bg-gradient-to-br from-purple-500/20 via-purple-400/10 to-indigo-500/20
-            font-display text-base font-medium shadow-[0_0_10px_rgba(168,85,247,0.15)]"
+            shadow-[0_0_10px_rgba(168,85,247,0.15)]"
         >
-          <span className="text-purple-200 drop-shadow-[0_2px_3px_rgba(168,85,247,0.3)]">
-            {getInitial()}
-          </span>
+          {/* Ícone aumentado para h-5 w-5 para melhor proporção */}
+          <User className="h-5 w-5 text-purple-200/90" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent 
@@ -51,27 +48,11 @@ export function ProfileMenu() {
       >
         <DropdownMenuLabel className="font-display tracking-wide py-2">
           <div className="space-y-0.5">
-            <p className="text-sm font-medium text-purple-200 truncate">
-              {user.user_metadata?.name || 'User'}
-            </p>
             <p className="text-xs text-purple-300/60 font-normal truncate">
               {user.email}
             </p>
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator className="bg-purple-500/20" />
-        <DropdownMenuItem className="flex items-center gap-3 text-[13px] py-2 cursor-pointer group">
-          <Settings className="w-4 h-4 text-purple-300/70 group-hover:text-purple-200" />
-          <span>Settings</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem className="flex items-center gap-3 text-[13px] py-2 cursor-pointer group">
-          <Bell className="w-4 h-4 text-purple-300/70 group-hover:text-purple-200" />
-          <span>Notifications</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem className="flex items-center gap-3 text-[13px] py-2 cursor-pointer group">
-          <HelpCircle className="w-4 h-4 text-purple-300/70 group-hover:text-purple-200" />
-          <span>Help & Support</span>
-        </DropdownMenuItem>
         <DropdownMenuSeparator className="bg-purple-500/20" />
         <DropdownMenuItem 
           onClick={() => signOut()}

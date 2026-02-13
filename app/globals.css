@@ -26,158 +26,207 @@
     --input: 240 3.7% 15.9%;
     --ring: 252 100% 69%;
   }
-  
+
   body {
-    @apply antialiased bg-[#030014] overflow-x-hidden;
+    @apply antialiased overflow-x-hidden;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    /* Fundo com profundidade (astro noir) */
+    background:
+      radial-gradient(1200px 800px at 18% -10%, #0b0720 0%, rgba(3,0,20,0.85) 55%),
+      radial-gradient(900px 600px at 85% 120%, rgba(88,28,135,0.15) 0%, rgba(3,0,20,0) 60%),
+      #030014;
   }
 
-  /* Improved mobile scrolling */
+  /* Mobile scrolling melhorado */
   .mobile-scroll {
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
-
-  .mobile-scroll::-webkit-scrollbar {
-    display: none;
-  }
+  .mobile-scroll::-webkit-scrollbar { display: none; }
 }
 
+/* Cartão base (matte, sem glow forte) */
 .dashboard-card {
-  @apply relative;
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  background-image: linear-gradient(160deg, rgba(88, 28, 135, 0.25), rgba(88, 28, 135, 0.05));
-  transition: all 1s cubic-bezier(0.4, 0, 0.2, 1), background-image 2s ease;
-  box-shadow: 0 0 20px rgba(139, 92, 246, 0.05),
-              inset 0 0 10px rgba(139, 92, 246, 0.05);
-  transform: translateZ(0); /* Ativa aceleração de hardware */
-  will-change: transform, box-shadow, background-image; /* Otimiza performance */
+  @apply relative rounded-xl;
+  border: 1px solid rgba(168,85,247,0.3); /* More visible purple border */
+  background: rgba(5, 5, 18, 0.7); /* Slightly more opaque background */
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.4); /* More pronounced shadow */
+  transition: transform .22s cubic-bezier(0.2,0.6,0.2,1),
+              box-shadow .22s cubic-bezier(0.2,0.6,0.2,1),
+              border-color .22s ease;
 }
-
 .dashboard-card:hover {
-  background-image: linear-gradient(160deg, 
-    rgba(139, 92, 246, 0.20), 
-    rgba(88, 28, 135, 0.05) 85% /* Controla onde o gradiente termina */
-  );
-  border-color: rgba(139, 92, 246, 0.2);
-  transform: translateY(-2px) translateZ(0);
-  box-shadow: 0 8px 25px rgba(139, 92, 246, 0.12),
-              inset 0 0 35px rgba(139, 92, 246, 0.08);
+  transform: translateY(-2px); /* Slightly more lift on hover */
+  border-color: rgba(168,85,247,0.5); /* Brighter purple border on hover */
+  box-shadow: 0 12px 35px rgba(0,0,0,0.5); /* Stronger shadow on hover */
 }
 
-/* Suaviza a transição ao sair do hover */
-.dashboard-card:not(:hover) {
-  transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
-}
-
-/* Custom scrollbar styles */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgb(30, 28, 41) #030014;
-}
-
-*::-webkit-scrollbar {
-  width: 6px;
-  background-color: #030014;
-}
-
-*::-webkit-scrollbar-track {
-  background-color: #030014;
-}
-
-*::-webkit-scrollbar-thumb {
-  background-color: rgb(30, 28, 41);
-  border-radius: 9999px;
-  border: none;
-  transition: background-color 0.2s ease;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background-color: rgb(42, 40, 52);
-}
+/* Scrollbar sutil */
+* { scrollbar-width: thin; scrollbar-color: rgb(30, 28, 41) #030014; }
+*::-webkit-scrollbar { width: 6px; background-color: #030014; }
+*::-webkit-scrollbar-track { background-color: #030014; }
+*::-webkit-scrollbar-thumb { background-color: rgb(30, 28, 41); border-radius: 9999px; border: none; transition: background-color 0.2s ease; }
+*::-webkit-scrollbar-thumb:hover { background-color: rgb(42, 40, 52); }
 
 /* Mobile optimizations */
 @media (max-width: 640px) {
-  .dashboard-card {
-    @apply p-4;
-  }
-
-  .stats-card {
-    @apply p-3;
-  }
+  .dashboard-card { @apply p-4; }
+  .stats-card { @apply p-3; }
 }
 
-/* Prevent content shift when modal opens */
-.no-shift {
-  padding-right: calc(100vw - 100%);
-}
+/* Overlay para menus mobile (se usar) */
+.mobile-menu-overlay { @apply fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden; animation: fadeIn 0.2s ease-out; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* Improved mobile menu */
-.mobile-menu-overlay {
-  @apply fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden;
-  animation: fadeIn 0.2s ease-out;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-  .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  background-color: #030014;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background-color: #030014;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgb(30, 28, 41);
-  border-radius: 9999px;
-  border: none;
-  transition: background-color 0.2s ease;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgb(42, 40, 52);
-}
-
-/* --- n8n Chat Widget Custom Styles --- */
-
-/* Style the chat header */
+/* n8n Chat Widget (comentários corrigidos) */
+/* Header do chat */
 .n8n-chat-widget .n8n-chat-header {
   background-color: #581c87; /* Dark Purple */
   color: #e9d5ff; /* Light Purple Text */
   border-bottom: 1px solid #a855f7; /* Medium Purple Border */
 }
-
-/* Style the default chat bubble button (bottom right) */
+/* Botão flutuante */
 .n8n-chat-launcher {
   background-color: #9333ea !important; /* Medium Purple */
-  box-shadow: 0 0 15px rgba(168, 85, 247, 0.5); /* Your button glow */
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.5);
 }
 .n8n-chat-launcher:hover {
-   background-color: #a855f7 !important; /* Lighter Purple on hover */
-   box-shadow: 0 0 25px rgba(168, 85, 247, 0.7);
+  background-color: #a855f7 !important; /* Lighter Purple */
+  box-shadow: 0 0 25px rgba(168, 85, 247, 0.7);
 }
-.n8n-chat-launcher svg {
-  fill: #ffffff !important; /* White icon */
-}
-
-/* Style the user's message bubbles */
+.n8n-chat-launcher svg { fill: #ffffff !important; }
+/* Mensagens do usuário */
 .n8n-chat-widget .n8n-chat-message-bubble.user {
-  background-color: #9333ea; /* Medium Purple */
-  color: #ffffff; /* White text */
+  background-color: #9333ea; color: #ffffff;
 }
-
-/* Style the agent's (bot) message bubbles */
+/* Mensagens do agente */
 .n8n-chat-widget .n8n-chat-message-bubble.agent {
-  background-color: #581c87; /* Dark Purple */
-  color: #e9d5ff; /* Light Purple Text */
+  background-color: #581c87; color: #e9d5ff;
 }
 
-/* --- End n8n Chat Widget Custom Styles --- */ 
+.depth-card {
+  border: 1px solid rgba(168,85,247,0.3); /* More visible purple border */
+  background: rgba(5, 5, 18, 0.7); /* Slightly more opaque background */
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.4); /* More pronounced shadow */
+  transition: transform .22s cubic-bezier(0.2,0.6,0.2,1),
+              box-shadow .22s cubic-bezier(0.2,0.6,0.2,1),
+              border-color .22s ease;
+}
+.depth-card:hover {
+  transform: translateY(-2px); /* Slightly more lift on hover */
+  box-shadow: 0 12px 35px rgba(0,0,0,0.5); /* Stronger shadow on hover */
+  border-color: rgba(168,85,247,0.5); /* Brighter purple border on hover */
+}
 
-/* globals.css */
-html { scrollbar-gutter: stable both-edges; }  /* Chrome 94+, Firefox 97+ */
+.glass-pill {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  backdrop-filter: blur(6px);
+}
+
+.input-reset {
+  background: transparent !important;
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+/* --- Pill buttons (clean) --- */
+.pill-btn {
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(6px);
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  transition: background-color .15s ease, border-color .15s ease, transform .1s ease;
+}
+.pill-btn:hover {
+  background: rgba(255,255,255,0.07);   /* só um tom acima */
+  border-color: rgba(255,255,255,0.16); /* sem glow */
+  transform: translateY(-1px);          /* lift sutil */
+}
+.pill-btn:active {
+  transform: translateY(0);             /* sensação de “clicado” */
+}
+.pill-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(168,85,247,0.35); /* foco acessível, discreto */
+}
+
+.pill-btn.active-filter {
+  background: rgba(168,85,247,0.15); /* Slightly more prominent background */
+  border-color: rgba(168,85,247,0.4); /* Purple border */
+  color: #e9d5ff; /* Lighter text color */
+}
+
+.pill-btn.active-filter:hover {
+  background: rgba(168,85,247,0.2);
+  border-color: rgba(168,85,247,0.5);
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(30,28,41) #030014;
+}
+.custom-scrollbar::-webkit-scrollbar { width: 6px }
+.custom-scrollbar::-webkit-scrollbar-track { background-color: #030014 }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgb(30,28,41); border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgb(42,40,52) }
+
+.search-pill-bordered {
+  @apply bg-black/40 border border-purple-500/30 backdrop-blur-sm shadow-inner;
+}
+
+/* Para os botões de filtro */
+.pill-btn-bordered {
+  @apply h-11 px-4 rounded-full transition-colors duration-200;
+  @apply bg-black/40 border border-purple-500/30 backdrop-blur-sm;
+  @apply hover:bg-purple-500/10 hover:border-purple-500/50;
+}
+
+.pill-btn-bordered.active-filter {
+  @apply bg-purple-500/15 border-purple-500/40 text-purple-100;
+}
+
+/* --- Dream Card Surface (sutil, sem mudar sizing) --- */
+/* --- Dream Card Surface (sutil, sem mudar tamanho) --- */
+.dream-surface {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(17,14,31,0.72) 0%, rgba(10,8,20,0.72) 100%);
+  border: 1x solid rgba(168,85,247,0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    0 8px 24px rgba(0,0,0,0.35);
+  transition:
+    border-color .2s ease,
+    box-shadow .2s ease,
+    transform .2s cubic-bezier(0.2,0.6,0.2,1);
+}
+
+.dream-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* dois spotlights discretos */
+  background:
+    radial-gradient(120% 180% at 14% -10%, rgba(168,85,247,0.08) 0%, rgba(168,85,247,0) 40%),
+    radial-gradient(120% 160% at 86% 120%, rgba(59,130,246,0.06) 0%, rgba(59,130,246,0) 45%);
+  mix-blend-mode: screen;
+  opacity: .8;
+}
+
+.dream-surface:hover {
+  border-color: rgba(168,85,247,0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.05),
+    0 12px 32px rgba(0,0,0,0.45);
+  transform: translateY(-1px);
+} 

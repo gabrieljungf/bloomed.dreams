@@ -1,4 +1,4 @@
-// FILE: src/components/brand/logo.tsx
+// Em: components/brand/logo.tsx
 "use client";
 
 import Link from 'next/link';
@@ -7,61 +7,61 @@ import { cn } from '@/lib/utils';
 
 interface LogoProps {
   className?: string;
-  imageWidthIntrinsic?: number; // Renomeado para clareza: esta é a dimensão original da imagem
-  imageHeightIntrinsic?: number;
+  variant?: 'large' | 'small'; // Prop para controlar o tamanho
 }
 
-export function Logo({
-  className = "",
-  imageWidthIntrinsic = 90,  // Dimensão original da sua imagem para otimização do Next/Image
-  imageHeightIntrinsic = 90,
-}: LogoProps) {
-
+export function Logo({ className = "", variant = 'large' }: LogoProps) {
+  const isLarge = variant === 'large';
   const displayFontClass = 'font-display-marcellus';
-  const fontWeightClass = 'font-normal'; // Marcellus geralmente usa peso 400 (normal)
+  const fontWeightClass = 'font-normal';
+
+  // --- LÓGICA DE TAMANHO REFINADA ---
+  // A imagem na variante 'large' agora é maior, mas o texto continua igual.
+  const imageContainerSize = isLarge ? "w-[80px] h-[80px] sm:w-[90px] sm:h-[90px] md:w-[100px] md:h-[100px]" : "w-[60px] h-[60px]";
+  const imageIntrinsicSize = isLarge ? 100 : 60; // Tamanho para otimização do Next/Image
+
+  // O tamanho do texto permanece o mesmo de antes.
+  const titleSize = isLarge ? "text-4xl sm:text-5xl md:text-6xl" : "text-4xl";
+  const subtitleSize = isLarge ? "text-3xs sm:text-2xs" : "text-3xs";
 
   return (
-    <Link href="/" className={cn(
+    <Link 
+      href="/" 
+      className={cn(
         'flex flex-col items-center group',
-        'space-y-1 sm:space-y-2', // Espaçamento vertical menor no mobile, aumenta um pouco em 'sm'
+        isLarge ? 'space-y-1 sm:space-y-2' : 'space-y-1',
         className
-      )}>
+    )}>
       <div className={cn(
         "logo-image-container group-hover:scale-105 transition-transform duration-300",
-        // Define um tamanho base menor para a imagem no mobile e aumenta em breakpoints maiores
-        "w-[60px] h-[60px] sm:w-[70px] sm:h-[70px] md:w-[80px] md:h-[80px] lg:w-[90px] lg:h-[90px]"
+        imageContainerSize
       )}>
         <Image
           src="/images/Logo-Bloomed-Dreams.png"
           alt="Bloomed Dreams Icon"
-          width={imageWidthIntrinsic}  // Para Next.js otimizar
-          height={imageHeightIntrinsic}
+          width={imageIntrinsicSize}
+          height={imageIntrinsicSize}
           priority
-          className="w-full h-full object-contain" // Faz a imagem preencher o div container
+          className="w-full h-full object-contain"
         />
       </div>
 
-      <h1
-        className={cn(
-          // Tamanhos de fonte responsivos: Começa menor e aumenta
-          "text-4xl",                     // Base para mobile (ex: 30px)
-          "sm:text-5xl",                  // Para telas 'sm' e acima (ex: 36px)
-          "md:text-6xl",                  // Para telas 'md' e acima (ex: 48px)
+      <h1 className={cn(
+          titleSize,
           "bg-gradient-to-r from-purple-300/90 via-purple-400/90 to-purple-300/90 text-transparent bg-clip-text",
-          "tracking-tight",               // Tracking 'tight' pode ser bom para títulos grandes
-          displayFontClass,               // Aplica font-display-marcellus
-          fontWeightClass                 // Aplica font-normal (para Marcellus)
-        )}
-      >
+          "tracking-tight",
+          displayFontClass,
+          fontWeightClass
+      )}>
         bloomed dreams.
       </h1>
 
       <p className={cn(
         "font-light uppercase",
-        "text-3xs sm:text-2xs", // Usa 'text-3xs' (8px) como base, e 'text-2xs' (10px) a partir de 'sm'
+        subtitleSize,
         "text-purple-300/75",
         "tracking-wider sm:tracking-[0.1em]",
-        "leading-snug sm:leading-normal" // Pode querer ajustar leading também
+        "leading-snug sm:leading-normal"
       )}>
         Dream. Decode. Get bloomed.
       </p>

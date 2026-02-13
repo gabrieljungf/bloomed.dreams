@@ -1,3 +1,5 @@
+// ARQUIVO CORRIGIDO: components/page-background.tsx
+
 "use client";
 
 import { StarField } from './star-field';
@@ -7,7 +9,13 @@ export function PageBackground({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#050008] via-[#0F001A] to-[#050008] relative">
       {/* Background layers */}
-      <div className="fixed inset-0">
+      {/* 
+        A MUDANÇA ESTÁ AQUI:
+        Adicionamos 'pointer-events-none' a este container.
+        Agora, esta camada inteira (estrelas, gradientes) será invisível para o mouse,
+        permitindo que você clique e selecione o conteúdo abaixo dela.
+      */}
+      <div className="fixed inset-0 pointer-events-none">
         {/* Stars layer na base */}
         <div className="absolute inset-0 z-[0]">
           <StarField />
@@ -26,6 +34,10 @@ export function PageBackground({ children }: { children: React.ReactNode }) {
       </div>
       
       {/* Content layer */}
+      {/* 
+        Como o conteúdo está em um container irmão e com z-index maior, 
+        ele continuará visível, mas agora receberá os cliques.
+      */}
       <div className="relative z-[3]">
         {children}
       </div>

@@ -1,9 +1,10 @@
-// FILE: app/api/dream/route.ts
 import { NextResponse } from 'next/server';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { analyzeDreamInput } from '@/lib/services/ai-services';
 
-// --- Configuração do Upstash Rate Limiter ---
 let redis: Redis | null = null;
 let ratelimitHour: Ratelimit | null = null;
 let ratelimitDay: Ratelimit | null = null;
@@ -11,7 +12,6 @@ let ratelimitDay: Ratelimit | null = null;
 const REDIS_KEY_TOTAL_MESSAGES = 'dreamchat:total_messages';
 const REDIS_KEY_TOTAL_ERRORS = 'dreamchat:total_errors';
 const REDIS_KEY_UNIQUE_USERS_SET = 'dreamchat:users';
-const REDIS_KEY_RATE_LIMITED_REQUESTS = 'dreamchat:total_rate_limited'; // Nova chave
 
 if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
   try {
@@ -21,184 +21,157 @@ if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) 
     });
 
     ratelimitHour = new Ratelimit({
-      redis: redis,
+      redis,
       limiter: Ratelimit.slidingWindow(5, '1h'),
       analytics: true,
       prefix: 'ratelimit_dream_api_handler_hourly_v2',
     });
 
     ratelimitDay = new Ratelimit({
-      redis: redis,
+      redis,
       limiter: Ratelimit.slidingWindow(10, '1d'),
       analytics: true,
       prefix: 'ratelimit_dream_api_handler_daily_v2',
     });
-
-    console.log("Upstash Rate Limiters (hourly & daily) inicializados DENTRO de /api/dream/route.ts");
   } catch (error) {
-    console.error("Falha ao inicializar Upstash Redis/Ratelimiters em /api/dream/route.ts:", error);
-    // Se o Redis estiver configurado, poderíamos tentar logar um erro aqui,
-    // mas é provável que o próprio redis seja o que falhou.
+    console.error('[Upstash] Failed to initialize Redis/Ratelimit:', error);
   }
 } else {
-  console.warn('Variáveis de ambiente do Upstash Redis não configuradas. O Rate Limiting para /api/dream estará desabilitado.');
+  console.warn('[Upstash] Redis env vars not configured. Metrics/rate-limit disabled.');
 }
 
 const N8N_INTERNAL_WEBHOOK_URL = process.env.N8N_INTERNAL_WEBHOOK_URL;
 
+async function safeRedisIncr(key: string) {
+  if (!redis) return;
+  try {
+    await redis.incr(key);
+  } catch (error) {
+    console.error(`[Redis] Failed to increment key "${key}". Continuing.`, error);
+  }
+}
+
+async function safeRedisTrackMessage(sessionId: string) {
+  if (!redis) return;
+  try {
+    const pipeline = redis.pipeline();
+    pipeline.sadd(REDIS_KEY_UNIQUE_USERS_SET, sessionId);
+    pipeline.incr(REDIS_KEY_TOTAL_MESSAGES);
+    await pipeline.exec();
+  } catch (error) {
+    console.error('[Redis] Metrics pipeline failed. Continuing.', error);
+  }
+}
+
 export async function POST(request: Request) {
-  const ip = request.headers.get('x-forwarded-for')?.split(',').shift()?.trim() ||
-             request.headers.get('x-vercel-forwarded-for')?.split(',').shift()?.trim() ||
-             '127.0.0.1';
-  
-  console.log(`Requisição recebida em /api/dream de IP: ${ip}`);
-
-  let rateLimitExceededInfo = {
-    exceeded: false,
-    message: "",
-    limit: 0,
-    remaining: 0,
-    reset: Date.now() + 3600000
-  };
-
-  // 1. Checar limite diário primeiro
-  if (ratelimitDay) {
-    try {
-      const { success, limit, remaining, reset } = await ratelimitDay.limit(ip);
-      if (!success) {
-        rateLimitExceededInfo = { exceeded: true, message: `You've reached the daily request limit (${limit} per day).`, limit, remaining, reset };
-        console.warn(`Rate limit DIÁRIO excedido para /api/dream por IP: ${ip}`);
-        // Incrementar métrica de rate limit, NÃO de erro
-        if (redis) await redis.incr(REDIS_KEY_RATE_LIMITED_REQUESTS);
-      } else {
-        rateLimitExceededInfo = { ...rateLimitExceededInfo, limit, remaining, reset };
-      }
-    } catch (error) { // Erro ao tentar verificar o rate limit (ex: Upstash indisponível)
-      console.error("Erro durante a verificação de rate limiting DIÁRIO com Upstash:", error);
-      if (redis) await redis.incr(REDIS_KEY_TOTAL_ERRORS); // ISSO é um erro
-    }
-  }
-
-  // 2. Se passou no limite diário (ou se o limiter diário não está ativo/configurado), checar limite por hora
-  if (!rateLimitExceededInfo.exceeded && ratelimitHour) {
-    try {
-      const { success, limit, remaining, reset } = await ratelimitHour.limit(ip);
-      rateLimitExceededInfo = { ...rateLimitExceededInfo, limit, remaining, reset };
-      if (!success) {
-        rateLimitExceededInfo.exceeded = true;
-        rateLimitExceededInfo.message = `You've reached the hourly request limit (${limit} per hour).`;
-        console.warn(`Rate limit HORÁRIO excedido para /api/dream por IP: ${ip}`);
-        // Incrementar métrica de rate limit, NÃO de erro
-        if (redis) await redis.incr(REDIS_KEY_RATE_LIMITED_REQUESTS);
-      }
-    } catch (error) { // Erro ao tentar verificar o rate limit
-      console.error("Erro durante a verificação de rate limiting HORÁRIO com Upstash:", error);
-      if (redis) await redis.incr(REDIS_KEY_TOTAL_ERRORS); // ISSO é um erro
-    }
-  }
-
-  // Se algum limite foi excedido e uma mensagem de erro foi definida (pelas verificações acima)
-  if (rateLimitExceededInfo.exceeded && rateLimitExceededInfo.message) {
-    const timeLeftSeconds = Math.max(0, Math.ceil((rateLimitExceededInfo.reset - Date.now()) / 1000));
-    const tryAgainMessage = timeLeftSeconds > 0
-      ? `Please try again in about ${Math.ceil(timeLeftSeconds / 60)} minute(s).`
-      : "Please try again shortly.";
-    const fullMessage = `${rateLimitExceededInfo.message} ${tryAgainMessage}`;
-
-    const scope =
-      rateLimitExceededInfo.message.toLowerCase().includes("daily") ? "daily" :
-      rateLimitExceededInfo.message.toLowerCase().includes("hourly") ? "hourly" :
-      "unknown";
-
-    return NextResponse.json(
-      { error: fullMessage, scope },
-      {
-        status: 429,
-        headers: {
-          'X-Ratelimit-Limit': rateLimitExceededInfo.limit.toString(),
-          'X-Ratelimit-Remaining': rateLimitExceededInfo.remaining.toString(),
-          'X-Ratelimit-Reset': new Date(rateLimitExceededInfo.reset).toISOString(),
-        },
-      }
-    );
-  }
-
-  if (!ratelimitDay && !ratelimitHour) {
-      console.warn("Nenhum Rate limiter para /api/dream está ativo (Upstash não configurado). Permitindo requisição.");
-  }
+  const supabase = createRouteHandlerClient({ cookies });
 
   if (!N8N_INTERNAL_WEBHOOK_URL) {
-    console.error('N8N_INTERNAL_WEBHOOK_URL não está configurada no servidor.');
-    if (redis) await redis.incr(REDIS_KEY_TOTAL_ERRORS);
-    return NextResponse.json(
-      { error: 'Internal server configuration error. Please contact support.' },
-      { status: 500 }
-    );
+    console.error('[Config] N8N_INTERNAL_WEBHOOK_URL is not configured.');
+    await safeRedisIncr(REDIS_KEY_TOTAL_ERRORS);
+    return NextResponse.json({ error: 'Internal server configuration error.' }, { status: 500 });
   }
 
   try {
     const body = await request.json();
-    const { dreamText, timestamp, sessionId } = body;
+    const { dreamText, timestamp, sessionId } = body ?? {};
 
     if (!dreamText || typeof dreamText !== 'string' || dreamText.trim().length === 0) {
-      if (redis) await redis.incr(REDIS_KEY_TOTAL_ERRORS);
+      await safeRedisIncr(REDIS_KEY_TOTAL_ERRORS);
       return NextResponse.json({ error: 'Dream text cannot be empty.' }, { status: 400 });
     }
-    if (dreamText.length > 5000) {
-      if (redis) await redis.incr(REDIS_KEY_TOTAL_ERRORS);
-      return NextResponse.json({ error: 'Dream text is too long. Please keep it under 5000 characters.' }, { status: 400 });
+
+    let session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session'] | null = null;
+    try {
+      const { data } = await supabase.auth.getSession();
+      session = data?.session ?? null;
+    } catch (error) {
+      console.error('[Supabase] getSession failed. Continuing without session.', error);
+      session = null;
     }
 
-    const n8nResponse = await fetch(N8N_INTERNAL_WEBHOOK_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({ dreamText, timestamp, sessionId }),
-    });
+    const [n8nResult, analysisResult] = await Promise.allSettled([
+      fetch(N8N_INTERNAL_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ dreamText, timestamp, sessionId }),
+      }),
+      analyzeDreamInput(dreamText),
+    ]);
+
+    if (n8nResult.status === 'rejected') {
+      console.error('[Core] n8n request failed:', n8nResult.reason);
+      await safeRedisIncr(REDIS_KEY_TOTAL_ERRORS);
+      return NextResponse.json({ error: 'n8n core service is unavailable.' }, { status: 502 });
+    }
+
+    if (analysisResult.status === 'rejected') {
+      console.error('[Core] LLM analysis failed:', analysisResult.reason);
+      await safeRedisIncr(REDIS_KEY_TOTAL_ERRORS);
+      return NextResponse.json({ error: 'LLM core analysis failed.' }, { status: 502 });
+    }
+
+    const n8nResponse = n8nResult.value;
 
     if (!n8nResponse.ok) {
-      if (redis) await redis.incr(REDIS_KEY_TOTAL_ERRORS);
-      let errorMsg = `N8N API Error: ${n8nResponse.status}`;
+      const errorText = await n8nResponse.text().catch(() => '');
+      console.error(`[Core] n8n failed with status ${n8nResponse.status}: ${errorText}`);
+      await safeRedisIncr(REDIS_KEY_TOTAL_ERRORS);
+      return NextResponse.json({ error: `n8n failed ${n8nResponse.status}` }, { status: 502 });
+    }
+
+    let interpretation = '';
+    try {
+      const n8nData = await n8nResponse.json();
+      interpretation = n8nData?.output ?? '';
+    } catch (error) {
+      console.error('[Core] Failed to parse n8n response JSON:', error);
+      await safeRedisIncr(REDIS_KEY_TOTAL_ERRORS);
+      return NextResponse.json({ error: 'Invalid n8n response format.' }, { status: 502 });
+    }
+
+    const dreamAnalysis = analysisResult.value;
+    let savedDreamData = null;
+
+    if (dreamAnalysis.isDream && session) {
       try {
-        const errorData = await n8nResponse.json();
-        errorMsg = errorData.error || errorData.message || `N8N Request Failed (${n8nResponse.status})`;
-      } catch (e) {
-        const textError = await n8nResponse.text();
-        console.error("N8N non-JSON error response:", textError);
-        errorMsg = textError || errorMsg;
-      }
-      console.error("Erro ao chamar N8N:", errorMsg);
-      return NextResponse.json(
-        { error: 'Failed to get a response from the dream decoder service.' },
-        { status: n8nResponse.status }
-      );
-    }
+        const { data: newDream, error: dbError } = await supabase
+          .from('dreams')
+          .insert({
+            user_id: session.user.id,
+            content: dreamText,
+            interpretation,
+            title: dreamAnalysis.title,
+            mood: dreamAnalysis.mood,
+            tags: dreamAnalysis.tags,
+          })
+          .select()
+          .single();
 
-    const n8nData = await n8nResponse.json();
-
-    if (redis && sessionId) {
-      try {
-        await redis.sadd(REDIS_KEY_UNIQUE_USERS_SET, sessionId);
-        await redis.incr(REDIS_KEY_TOTAL_MESSAGES);
-      } catch (e) {
-        console.warn("Falha ao atualizar métricas de SUCESSO no Redis:", e);
-        // Poderia ser um erro, mas cuidado para não entrar em loop se o redis estiver com problemas
-        // if (redis) await redis.incr(REDIS_KEY_TOTAL_ERRORS);
+        if (dbError) {
+          console.error('[Supabase] Failed to save dream. Continuing without persistence:', dbError);
+        } else {
+          savedDreamData = newDream;
+        }
+      } catch (error) {
+        console.error('[Supabase] Exception while saving dream. Continuing.', error);
       }
     }
 
-    return NextResponse.json(n8nData, { status: 200 });
-  } catch (error) {
-    console.error('Erro no Route Handler /api/dream (após checagem de rate limit):', error);
-    if (redis) await redis.incr(REDIS_KEY_TOTAL_ERRORS);
-    if (error instanceof SyntaxError) {
-        return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
+    if (sessionId && typeof sessionId === 'string') {
+      await safeRedisTrackMessage(sessionId);
     }
+
     return NextResponse.json(
-      { error: 'An unexpected error occurred on the server.' },
-      { status: 500 }
+      {
+        interpretation,
+        savedDream: savedDreamData,
+      },
+      { status: 200 },
     );
+  } catch (error) {
+    console.error('[API /dream] Unexpected handler error:', error);
+    await safeRedisIncr(REDIS_KEY_TOTAL_ERRORS);
+    return NextResponse.json({ error: 'An unexpected error occurred on the server.' }, { status: 500 });
   }
 }
