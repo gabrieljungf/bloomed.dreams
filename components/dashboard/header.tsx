@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from '@/components/auth-provider';
+import { useAuth } from '@/components/auth/auth-provider';
 
 export function DashboardHeader(): JSX.Element {
   const { user } = useAuth();
