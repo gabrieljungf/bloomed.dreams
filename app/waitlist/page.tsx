@@ -71,7 +71,7 @@ export default function WaitlistPage() {
           transition={{ duration: 0.7, delay: 0.1 }}
           className="mb-10 md:mb-12"
         >
-          <Logo imageWidthIntrinsic={80} imageHeightIntrinsic={80} />
+          <Logo variant="large" />
         </motion.div>
 
         <motion.div

@@ -2133,15 +2133,13 @@ export async function GET() {
 # Arquivo: .\app\api\dream\route.ts
 # =================================================================
 
-// ARQUIVO FINAL E CORRIGIDO: app/api/dream/route.ts
-
 import { NextResponse } from 'next/server';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
+import { analyzeDreamInput } from '@/lib/services/ai-services';
 
-// --- Configuração do Upstash e Redis ---
 let redis: Redis | null = null;
 let ratelimitHour: Ratelimit | null = null;
 let ratelimitDay: Ratelimit | null = null;
@@ -2149,7 +2147,6 @@ let ratelimitDay: Ratelimit | null = null;
 const REDIS_KEY_TOTAL_MESSAGES = 'dreamchat:total_messages';
 const REDIS_KEY_TOTAL_ERRORS = 'dreamchat:total_errors';
 const REDIS_KEY_UNIQUE_USERS_SET = 'dreamchat:users';
-const REDIS_KEY_RATE_LIMITED_REQUESTS = 'dreamchat:total_rate_limited';
 
 if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
   try {
@@ -2159,146 +2156,161 @@ if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) 
     });
 
     ratelimitHour = new Ratelimit({
-      redis: redis,
+      redis,
       limiter: Ratelimit.slidingWindow(5, '1h'),
       analytics: true,
       prefix: 'ratelimit_dream_api_handler_hourly_v2',
     });
 
     ratelimitDay = new Ratelimit({
-      redis: redis,
+      redis,
       limiter: Ratelimit.slidingWindow(10, '1d'),
       analytics: true,
       prefix: 'ratelimit_dream_api_handler_daily_v2',
     });
   } catch (error) {
-    console.error("Falha ao inicializar Upstash Redis/Ratelimiters:", error);
+    console.error('[Upstash] Failed to initialize Redis/Ratelimit:', error);
   }
 } else {
-  console.warn('Variáveis de ambiente do Upstash Redis não configuradas. Rate Limiting desabilitado.');
+  console.warn('[Upstash] Redis env vars not configured. Metrics/rate-limit disabled.');
 }
 
 const N8N_INTERNAL_WEBHOOK_URL = process.env.N8N_INTERNAL_WEBHOOK_URL;
 
-// ÚNICA DECLARAÇÃO DA FUNÇÃO POST
+async function safeRedisIncr(key: string) {
+  if (!redis) return;
+  try {
+    await redis.incr(key);
+  } catch (error) {
+    console.error(`[Redis] Failed to increment key "${key}". Continuing.`, error);
+  }
+}
+
+async function safeRedisTrackMessage(sessionId: string) {
+  if (!redis) return;
+  try {
+    const pipeline = redis.pipeline();
+    pipeline.sadd(REDIS_KEY_UNIQUE_USERS_SET, sessionId);
+    pipeline.incr(REDIS_KEY_TOTAL_MESSAGES);
+    await pipeline.exec();
+  } catch (error) {
+    console.error('[Redis] Metrics pipeline failed. Continuing.', error);
+  }
+}
+
 export async function POST(request: Request) {
   const supabase = createRouteHandlerClient({ cookies });
-  const ip = request.headers.get('x-forwarded-for')?.split(',').shift()?.trim() ||
-             request.headers.get('x-vercel-forwarded-for')?.split(',').shift()?.trim() ||
-             '127.0.0.1';
-
-  // --- Lógica de Rate Limiting (Permanece igual) ---
-  let rateLimitExceededInfo = {
-    exceeded: false, message: "", limit: 0, remaining: 0, reset: Date.now() + 3600000
-  };
-
-  if (ratelimitDay) {
-    try {
-      const { success, limit, remaining, reset } = await ratelimitDay.limit(ip);
-      if (!success) {
-        rateLimitExceededInfo = { exceeded: true, message: `You've reached the daily request limit (${limit} per day).`, limit, remaining, reset };
-        if (redis) await redis.incr(REDIS_KEY_RATE_LIMITED_REQUESTS);
-      }
-    } catch (error) {
-      console.error("Erro no rate limiting DIÁRIO:", error);
-      if (redis) await redis.incr(REDIS_KEY_TOTAL_ERRORS);
-    }
-  }
-
-  if (!rateLimitExceededInfo.exceeded && ratelimitHour) {
-    try {
-      const { success, limit, remaining, reset } = await ratelimitHour.limit(ip);
-      if (!success) {
-        rateLimitExceededInfo.exceeded = true;
-        rateLimitExceededInfo.message = `You've reached the hourly request limit (${limit} per hour).`;
-        if (redis) await redis.incr(REDIS_KEY_RATE_LIMITED_REQUESTS);
-      }
-    } catch (error) {
-      console.error("Erro no rate limiting HORÁRIO:", error);
-      if (redis) await redis.incr(REDIS_KEY_TOTAL_ERRORS);
-    }
-  }
-
-  if (rateLimitExceededInfo.exceeded && rateLimitExceededInfo.message) {
-    const timeLeftSeconds = Math.max(0, Math.ceil((rateLimitExceededInfo.reset - Date.now()) / 1000));
-    const tryAgainMessage = timeLeftSeconds > 0 ? `Please try again in about ${Math.ceil(timeLeftSeconds / 60)} minute(s).` : "Please try again shortly.";
-    const fullMessage = `${rateLimitExceededInfo.message} ${tryAgainMessage}`;
-    const scope = rateLimitExceededInfo.message.toLowerCase().includes("daily") ? "daily" : "hourly";
-    return NextResponse.json({ error: fullMessage, scope }, { status: 429 });
-  }
-  // --- Fim da Lógica de Rate Limiting ---
 
   if (!N8N_INTERNAL_WEBHOOK_URL) {
-    console.error('N8N_INTERNAL_WEBHOOK_URL não configurada.');
-    if (redis) await redis.incr(REDIS_KEY_TOTAL_ERRORS);
+    console.error('[Config] N8N_INTERNAL_WEBHOOK_URL is not configured.');
+    await safeRedisIncr(REDIS_KEY_TOTAL_ERRORS);
     return NextResponse.json({ error: 'Internal server configuration error.' }, { status: 500 });
   }
 
   try {
     const body = await request.json();
-    const { dreamText, timestamp, sessionId } = body;
+    const { dreamText, timestamp, sessionId } = body ?? {};
 
     if (!dreamText || typeof dreamText !== 'string' || dreamText.trim().length === 0) {
-      if (redis) await redis.incr(REDIS_KEY_TOTAL_ERRORS);
+      await safeRedisIncr(REDIS_KEY_TOTAL_ERRORS);
       return NextResponse.json({ error: 'Dream text cannot be empty.' }, { status: 400 });
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
-
-    const n8nResponse = await fetch(N8N_INTERNAL_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ dreamText, timestamp, sessionId }),
-    });
-
-    if (!n8nResponse.ok) {
-      if (redis) await redis.incr(REDIS_KEY_TOTAL_ERRORS);
-      const errorText = await n8nResponse.text();
-      console.error("Erro ao chamar N8N:", n8nResponse.status, errorText);
-      return NextResponse.json({ error: 'Failed to get a response from the dream decoder service.' }, { status: n8nResponse.status });
+    let session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session'] | null = null;
+    try {
+      const { data } = await supabase.auth.getSession();
+      session = data?.session ?? null;
+    } catch (error) {
+      console.error('[Supabase] getSession failed. Continuing without session.', error);
+      session = null;
     }
 
-    const n8nData = await n8nResponse.json();
-    const interpretation = n8nData.output;
+    const [n8nResult, analysisResult] = await Promise.allSettled([
+      fetch(N8N_INTERNAL_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ dreamText, timestamp, sessionId }),
+      }),
+      analyzeDreamInput(dreamText),
+    ]);
 
+    if (n8nResult.status === 'rejected') {
+      console.error('[Core] n8n request failed:', n8nResult.reason);
+      await safeRedisIncr(REDIS_KEY_TOTAL_ERRORS);
+      return NextResponse.json({ error: 'n8n core service is unavailable.' }, { status: 502 });
+    }
+
+    if (analysisResult.status === 'rejected') {
+      console.error('[Core] LLM analysis failed:', analysisResult.reason);
+      await safeRedisIncr(REDIS_KEY_TOTAL_ERRORS);
+      return NextResponse.json({ error: 'LLM core analysis failed.' }, { status: 502 });
+    }
+
+    const n8nResponse = n8nResult.value;
+
+    if (!n8nResponse.ok) {
+      const errorText = await n8nResponse.text().catch(() => '');
+      console.error(`[Core] n8n failed with status ${n8nResponse.status}: ${errorText}`);
+      await safeRedisIncr(REDIS_KEY_TOTAL_ERRORS);
+      return NextResponse.json({ error: `n8n failed ${n8nResponse.status}` }, { status: 502 });
+    }
+
+    let interpretation = '';
+    try {
+      const n8nData = await n8nResponse.json();
+      interpretation = n8nData?.output ?? '';
+    } catch (error) {
+      console.error('[Core] Failed to parse n8n response JSON:', error);
+      await safeRedisIncr(REDIS_KEY_TOTAL_ERRORS);
+      return NextResponse.json({ error: 'Invalid n8n response format.' }, { status: 502 });
+    }
+
+    const dreamAnalysis = analysisResult.value;
     let savedDreamData = null;
 
-    if (session) {
-      const { data: newDream, error: dbError } = await supabase
-        .from('dreams')
-        .insert({
-          user_id: session.user.id,
-          content: dreamText,
-          interpretation: interpretation,
-          title: `Dream from ${new Date(timestamp || Date.now()).toLocaleDateString()}`
-        })
-        .select()
-        .single();
-      
-      if (dbError) {
-        console.error("Erro ao salvar o sonho no Supabase:", dbError);
-      } else {
-        console.log(`Sonho salvo para o usuário: ${session.user.id}`);
-        savedDreamData = newDream;
+    if (dreamAnalysis.isDream && session) {
+      try {
+        const { data: newDream, error: dbError } = await supabase
+          .from('dreams')
+          .insert({
+            user_id: session.user.id,
+            content: dreamText,
+            interpretation,
+            title: dreamAnalysis.title,
+            mood: dreamAnalysis.mood,
+            tags: dreamAnalysis.tags,
+          })
+          .select()
+          .single();
+
+        if (dbError) {
+          console.error('[Supabase] Failed to save dream. Continuing without persistence:', dbError);
+        } else {
+          savedDreamData = newDream;
+        }
+      } catch (error) {
+        console.error('[Supabase] Exception while saving dream. Continuing.', error);
       }
     }
 
-    if (redis && sessionId) {
-      await redis.sadd(REDIS_KEY_UNIQUE_USERS_SET, sessionId);
-      await redis.incr(REDIS_KEY_TOTAL_MESSAGES);
+    if (sessionId && typeof sessionId === 'string') {
+      await safeRedisTrackMessage(sessionId);
     }
 
-    return NextResponse.json({
-      interpretation: interpretation,
-      savedDream: savedDreamData,
-    }, { status: 200 });
-
+    return NextResponse.json(
+      {
+        interpretation,
+        savedDream: savedDreamData,
+      },
+      { status: 200 },
+    );
   } catch (error) {
-    console.error('Erro geral no handler /api/dream:', error);
-    if (redis) await redis.incr(REDIS_KEY_TOTAL_ERRORS);
+    console.error('[API /dream] Unexpected handler error:', error);
+    await safeRedisIncr(REDIS_KEY_TOTAL_ERRORS);
     return NextResponse.json({ error: 'An unexpected error occurred on the server.' }, { status: 500 });
   }
 }
+
 
 # =================================================================
 # Arquivo: .\app\api\join-waitlist\route.ts
@@ -2373,48 +2385,46 @@ export async function POST(request: Request) {
 # Arquivo: .\app\api\journal\route.ts
 # =================================================================
 
-// ARQUIVO NOVO: app/api/journal/route.ts
-
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { Database } from '@/lib/types/database.types'; // Verifique se o caminho para seus tipos está correto
+import { Database } from '@/lib/types/database.types';
 
 export async function GET() {
   const supabase = createRouteHandlerClient<Database>({ cookies });
 
+  let session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session'] | null = null;
   try {
-    // 1. Pega a sessão do usuário logado a partir dos cookies
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    const { data } = await supabase.auth.getSession();
+    session = data?.session ?? null;
+  } catch (error) {
+    console.error('[Journal API] Supabase session check failed. Returning empty list.', error);
+    return NextResponse.json([], { status: 200 });
+  }
 
-    // Se não houver sessão (usuário não logado), retorna uma lista vazia ou um erro
-    if (!session) {
+  if (!session) {
+    return NextResponse.json([], { status: 200 });
+  }
+
+  try {
+    const { data: dreams, error } = await supabase
+      .from('dreams')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[Journal API] Supabase query error. Returning empty list.', error);
       return NextResponse.json([], { status: 200 });
     }
 
-    // 2. Busca os sonhos na tabela 'dreams' que pertencem ao usuário logado
-    const { data: dreams, error } = await supabase
-      .from('dreams') // Certifique-se que o nome da tabela é 'dreams'
-      .select('*')
-      .eq('user_id', session.user.id)
-      .order('created_at', { ascending: false }); // Ordena do mais novo para o mais antigo
-
-    // Se houver um erro na busca do banco de dados
-    if (error) {
-      console.error('Supabase fetch error:', error);
-      throw new Error(error.message);
-    }
-
-    // 3. Retorna os sonhos encontrados como resposta da API
-    return NextResponse.json(dreams || []);
-
-  } catch (error: any) {
-    console.error('Error in /api/journal:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch dreams' }, { status: 500 });
+    return NextResponse.json(dreams ?? [], { status: 200 });
+  } catch (error) {
+    console.error('[Journal API] Unexpected fetch error. Returning empty list.', error);
+    return NextResponse.json([], { status: 200 });
   }
 }
+
 
 # =================================================================
 # Arquivo: .\app\waitlist\page.tsx
@@ -2493,7 +2503,7 @@ export default function WaitlistPage() {
           transition={{ duration: 0.7, delay: 0.1 }}
           className="mb-10 md:mb-12"
         >
-          <Logo imageWidthIntrinsic={80} imageHeightIntrinsic={80} />
+          <Logo variant="large" />
         </motion.div>
 
         <motion.div
@@ -2589,6 +2599,7 @@ export default function WaitlistPage() {
     </PageBackground>
   );
 }
+
 
 # =================================================================
 # Arquivo: .\components\background-effects.tsx
@@ -3010,13 +3021,12 @@ export function AuthPrompt() {
 # Arquivo: .\components\auth\auth-provider.tsx
 # =================================================================
 
-// Em: components/auth/auth-provider.tsx
-"use client";
+'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase/client'; // <-- Importando nossa única fonte da verdade
+import type { Session, User } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase/client';
 
 type AuthContextType = {
   user: User | null;
@@ -3039,23 +3049,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        setUser(session?.user ?? null);
+      } catch (error) {
+        console.error('[Auth] Failed to load session. Continuing signed-out.', error);
+        setSession(null);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
     };
 
     getSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-      // O middleware já cuida dos redirecionamentos, mas podemos adicionar um refresh se necessário
-      // router.refresh();
-    });
+    let unsubscribe: (() => void) | null = null;
 
-    return () => subscription.unsubscribe();
+    try {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+        setSession(nextSession);
+        setUser(nextSession?.user ?? null);
+        setLoading(false);
+      });
+
+      unsubscribe = () => subscription.unsubscribe();
+    } catch (error) {
+      console.error('[Auth] Failed to subscribe auth state changes.', error);
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [router]);
 
   const signIn = async (email: string, password: string) => {
@@ -3071,11 +3096,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/login`,
-      }
+      },
     });
     if (error) throw error;
-    // Após o cadastro, o usuário pode precisar confirmar o email (se ativado).
-    // Por enquanto, vamos apenas dar refresh para que o estado seja atualizado.
     router.refresh();
   };
 
@@ -3088,18 +3111,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resendConfirmation = async (email: string) => {
     const { error } = await supabase.auth.resend({
-      type: 'signup', // Especifica que é o email de confirmação de cadastro
-      email: email,
+      type: 'signup',
+      email,
     });
-    // Se houver um erro, ele será lançado para que o componente que o chamou possa tratá-lo.
+
     if (error) {
-      // O Supabase já tem rate limiting para isso, então o erro pode ser "Too many requests"
-      console.error("Erro ao reenviar confirmação:", error);
+      console.error('[Auth] Failed to resend confirmation email:', error);
       throw error;
     }
   };
 
-  const signInWithGoogle = async () => { // <-- FUNÇÃO ADICIONADA
+  const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -3130,6 +3152,7 @@ export function useAuth() {
   }
   return context;
 }
+
 
 # =================================================================
 # Arquivo: .\components\auth\forgot-password-form.tsx
@@ -5325,15 +5348,23 @@ import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-const DreamscapeSeparator = () => (
-  <div className="h-px w-full bg-gradient-to-r from-transparent via-purple-500/20 to-transparent my-4" />
+// 💫 separador mais etéreo e leve
+const DreamscapeSeparator = ({ className }: { className?: string }) => (
+  <div
+    className={cn(
+      "h-px w-full my-5",
+      "bg-gradient-to-r from-transparent via-purple-400/20 to-transparent",
+      "blur-[0.4px]",
+      className
+    )}
+  />
 );
 
 interface DreamCardProps {
   dream: {
     id: string;
     title: string;
-    created_at: string;              // ISO / timestamptz
+    created_at: string;
     content: string;
     tags: string[] | null;
     mood: string | null;
@@ -5344,18 +5375,20 @@ interface DreamCardProps {
   onDelete?: (id: string) => void;
 }
 
+// 🌙 linguagem mais simbólica
 const moodLabels: Record<string, { label: string; emoji: string }> = {
-  neutral:  { label: "Calm night",          emoji: "😌" },
-  happy:    { label: "Bright dream",        emoji: "😊" },
-  sad:      { label: "Heavy shadow",        emoji: "😔" },
-  anxious:  { label: "Anxious thoughts",    emoji: "😟" },
-  exciting: { label: "Exciting adventure",  emoji: "🤩" },
-  fearful:  { label: "Fearful encounter",   emoji: "😨" },
-  confused: { label: "Confused state",      emoji: "🤔" },
+  serene: { label: "Still Waters", emoji: "🌙" },
+  luminous: { label: "Radiant Vision", emoji: "🌕" },
+  melancholic: { label: "Fading Echoes", emoji: "🌫️" },
+  turbulent: { label: "Restless Tide", emoji: "🌊" },
+  uncanny: { label: "Strange Mirror", emoji: "🪞" },
+  exhilarating: { label: "Wild Ascent", emoji: "⚡" },
+  ominous: { label: "Dark Whisper", emoji: "🌑" },
+  introspective: { label: "Inner Journey", emoji: "🕯️" },
 };
 
 function fmtCard(d: Date) {
-  return `${d.toLocaleDateString("en-US", { month: "long", day: "numeric" })} • ${d.toLocaleTimeString(
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} • ${d.toLocaleTimeString(
     "en-US",
     { hour: "2-digit", minute: "2-digit" }
   )}`;
@@ -5374,56 +5407,63 @@ function fmtHeader(d: Date) {
 export function DreamCard({ dream, variant = "default", onUpdate, onDelete }: DreamCardProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const moodKey = dream.mood || "neutral";
+  const moodKey = dream.mood || "serene";
   const mood = moodLabels[moodKey] ?? { label: moodKey, emoji: "✨" };
 
   const date = new Date(dream.created_at);
-  const ok = !isNaN(date.getTime());
-  const metaCard = ok ? fmtCard(date) : "Date unavailable";
-  const metaHeader = ok ? fmtHeader(date) : "Date unavailable";
+  const metaCard = fmtCard(date);
+  const metaHeader = fmtHeader(date);
 
   const preview =
     dream.content.length > 140 ? `${dream.content.slice(0, 140)}…` : dream.content;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .28, ease: [0.2, 0.6, 0.2, 1] }}>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: [0.2, 0.6, 0.2, 1] }}
+    >
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        {/* ===== CARD (duas colunas, verticalmente centralizado) ===== */}
-        <div className="cursor-pointer" onClick={() => setIsOpen(true)} aria-label="Open dream details">
+        {/* CARD */}
+        <div onClick={() => setIsOpen(true)} className="cursor-pointer group">
           <CardContainer
             className={cn(
-              "w-full dream-surface",                 // <<< usa a nova superfície
-              // remove esses dois para não sobrepor o fundo:
-              // variant === "alt" ? "bg-black/50" : "bg-black/40"
+              "w-full dream-surface relative overflow-hidden",
+              "transition-all duration-500 group-hover:scale-[1.01] group-hover:shadow-[0_0_32px_-8px_rgba(180,120,255,0.15)]"
             )}
           >
-            <div className="flex items-center justify-between gap-6 min-h-[112px]">
-              {/* Bloco esquerdo: centralizado verticalmente como conjunto */}
+            <div className="flex items-center justify-between gap-4 min-h-[84px] py-2">
               <div className="flex flex-col justify-center min-w-0 flex-1">
-                <p className="text-xs text-purple-200/60 font-medium uppercase tracking-wider">
+                <p className="text-[11px] text-purple-200/60 uppercase tracking-wider font-medium">
                   {metaCard}
                 </p>
-                <h3 className="mt-1 text-lg font-semibold text-purple-100 font-sans truncate">
+                <h3 className="mt-1 text-lg font-display-marcellus text-purple-100 truncate">
                   {dream.title || "Untitled Dream"}
                 </h3>
-                <p className="mt-1 text-sm text-purple-200/80 leading-relaxed line-clamp-2">
+                <p className="mt-1 text-sm text-purple-200/75 leading-relaxed line-clamp-2">
                   {preview}
                 </p>
               </div>
 
-              {/* Bloco direito: badge centralizada verticalmente */}
               <div className="flex items-center justify-center shrink-0">
-                <span className="glass-pill text-xs px-3 py-1.5 text-purple-200/85 rounded-full">
+                <span
+                  className={cn(
+                    "glass-pill text-xs px-3 py-1.5 rounded-full",
+                    "text-purple-100/90 border border-purple-500/20 bg-purple-500/10"
+                  )}
+                >
                   {mood.emoji} {mood.label}
                 </span>
               </div>
             </div>
 
-            {/* Tags (se quiser manter no card) */}
             {!!dream.tags?.length && (
               <div className="flex flex-wrap gap-2 pt-3">
-                {dream.tags!.map((tag, i) => (
-                  <span key={i} className="glass-pill text-[11px] px-2.5 py-1 text-purple-200/75 rounded-full">
+                {dream.tags.map((tag, i) => (
+                  <span
+                    key={i}
+                    className="glass-pill text-[11px] px-2.5 py-1 text-purple-200/70 border border-purple-500/10 rounded-full bg-purple-900/20"
+                  >
                     {tag}
                   </span>
                 ))}
@@ -5432,52 +5472,39 @@ export function DreamCard({ dream, variant = "default", onUpdate, onDelete }: Dr
           </CardContainer>
         </div>
 
-        {/* ===== MODAL ===== */}
+        {/* MODAL */}
         <DialogContent
           className={cn(
             "!rounded-2xl overflow-hidden",
-            "bg-gradient-to-b from-[#1a142c] to-[#110E1F]",
-            "border border-purple-500/20 shadow-2xl shadow-purple-500/10",
+            "bg-gradient-to-b from-[#181025] via-[#130f22] to-[#0e0a17]",
+            "border border-purple-500/20 shadow-[0_0_64px_-10px_rgba(150,80,255,0.25)]",
             "p-0 max-w-4xl w-[95vw] h-[90vh] flex flex-col"
           )}
         >
           <DialogHeader
-            className="sticky top-0 z-10 rounded-t-2xl
-                       p-4 sm:p-6 flex-row items-center justify-between
-                       border-b border-purple-500/10
-                       bg-[#1a142c]/80 backdrop-blur-md"
+            className={cn(
+              "sticky top-0 z-10 rounded-t-2xl flex-row items-center justify-between",
+              "p-5 border-b border-purple-500/10",
+              "bg-[#181025]/80 backdrop-blur-md"
+            )}
           >
             <div className="text-left">
-              <DialogTitle className="text-2xl font-sans font-medium text-purple-100">
+              <DialogTitle className="text-2xl font-display-marcellus text-purple-100 tracking-wide">
                 {dream.title || "Untitled Dream"}
               </DialogTitle>
-              <DialogDescription className="text-xs text-purple-200/60">
+              <DialogDescription className="text-[11px] text-purple-300/60">
                 {metaHeader}
               </DialogDescription>
             </div>
             <div className="flex items-center gap-1.5">
-              <Button
-                variant="ghost" size="icon"
-                className="h-9 w-9 rounded-full text-purple-300 hover:text-purple-100 hover:bg-purple-500/10 transition-colors"
-                aria-label="Edit dream"
-                onClick={(e) => { e.stopPropagation(); onUpdate?.(dream.id, dream); }}
-              >
+              <Button variant="ghost" size="icon" className="h-9 w-9 text-purple-300/80 hover:text-purple-100">
                 <Pencil className="w-4 h-4" />
               </Button>
-              <Button
-                variant="ghost" size="icon"
-                className="h-9 w-9 rounded-full text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
-                aria-label="Delete dream"
-                onClick={(e) => { e.stopPropagation(); onDelete?.(dream.id); }}
-              >
+              <Button variant="ghost" size="icon" className="h-9 w-9 text-red-400/80 hover:text-red-300">
                 <Trash2 className="w-4 h-4" />
               </Button>
               <DialogClose asChild>
-                <Button
-                  variant="ghost" size="icon"
-                  className="h-9 w-9 rounded-full text-purple-300/80 hover:text-purple-100 hover:bg-purple-500/10 transition-colors"
-                  aria-label="Close"
-                >
+                <Button variant="ghost" size="icon" className="h-9 w-9 text-purple-300/70 hover:text-purple-100">
                   <X className="w-4 h-4" />
                 </Button>
               </DialogClose>
@@ -5485,51 +5512,57 @@ export function DreamCard({ dream, variant = "default", onUpdate, onDelete }: Dr
           </DialogHeader>
 
           <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-2">
-            {/* ESQUERDA */}
-            <div className="p-4 sm:p-6 flex flex-col gap-6 md:overflow-y-auto custom-scrollbar">
-              <div>
-                <h3 className="flex items-center gap-2 font-semibold text-purple-200/80 tracking-wider mb-3 font-display-marcellus">
+            {/* Left column */}
+            <div className="p-6 flex flex-col gap-6 md:overflow-y-auto custom-scrollbar">
+              <section>
+                <h3 className="flex items-center gap-2 font-display-marcellus text-purple-200/80 mb-3 text-[18px] tracking-wide">
                   <Moon className="w-4 h-4" /> Your Dream
                 </h3>
-                <p className="text-purple-200/90 whitespace-pre-wrap leading-relaxed text-[13px] font-light">
+                <p className="text-purple-100/90 whitespace-pre-wrap leading-relaxed text-[13px] font-light">
                   {dream.content}
                 </p>
-              </div>
+              </section>
 
               <DreamscapeSeparator />
 
-              <div>
-                <h4 className="flex items-center gap-2 font-semibold text-purple-200/80 tracking-wider font-display-marcellus mb-3">
+              <section>
+                <h4 className="flex items-center gap-2 font-display-marcellus text-purple-200/80 mb-3 text-[18px] tracking-wide">
                   <Star className="w-4 h-4" /> Key Symbols & Feelings
                 </h4>
-                <div className="flex flex-wrap gap-2">
-                  <span className="inline-flex items-center gap-2 text-[11px] h-auto px-3 py-1.5 rounded-full bg-black/20 border border-purple-500/10 text-purple-200/90">
-                    {mood.emoji} {mood.label}
-                  </span>
-                  {dream.tags?.map((tag, index) => (
-                    <span key={index} className="inline-flex items-center text-[11px] h-auto px-3 py-1.5 rounded-full bg-black/20 border border-purple-500/10 text-purple-200/90">
-                      {tag}
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs text-purple-300/60 mb-2">Primary Mood</p>
+                    <span className="inline-flex items-center gap-2 text-2xs px-2 py-1.5 rounded-full border border-purple-500/10 bg-purple-900/30 text-purple-100/90">
+                      {mood.emoji} {mood.label}
                     </span>
-                  ))}
+                  </div>
+                  {!!dream.tags?.length && (
+                    <div>
+                      <p className="text-xs text-purple-300/60 mb-2">Symbols Detected</p>
+                      <div className="flex flex-wrap gap-2">
+                        {dream.tags.map((tag, i) => (
+                          <span key={i} className="inline-flex items-center text-2xs px-2 py-1 rounded-full border border-purple-500/10 bg-purple-900/30 text-purple-100/90">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
+              </section>
+              <DreamscapeSeparator className="md:hidden" />
             </div>
 
-            {/* DIREITA */}
-            <div className="p-4 sm:p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6 md:border-l md:border-purple-500/10 md:pl-6">
-              <div>
-                <h3 className="flex items-center gap-2 font-semibold text-purple-200/80 font-display-marcellus tracking-wider mb-3">
+            {/* Right column */}
+            <div className="p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6 md:border-l md:border-purple-500/10 md:pl-6">
+              <section>
+                <h3 className="flex items-center gap-2 font-display-marcellus text-purple-200/80 mb-3 text-[18px] tracking-wide">
                   <Zap className="w-4 h-4" /> Interpretation
                 </h3>
                 <div
                   className={cn(
-                    "text-[13px] leading-6 text-purple-200/90 font-light",
-                    "[&_p]:mb-3 [&_p:last-child]:mb-0",
-                    "[&_h1]:text-base [&_h2]:text-sm [&_h3]:text-[13px]",
-                    "[&_h1,h2,h3]:text-purple-100 [&_h1,h2,h3]:mb-2",
-                    "[&_ul]:list-disc [&_ol]:list-decimal [&_ul,ol]:pl-5 [&_li]:mb-1.5",
-                    "[&_a]:underline [&_a]:underline-offset-2",
-                    "[&_strong]:text-purple-100 [&_em]:opacity-90"
+                    "text-[13px] leading-6 text-purple-100/85 font-light",
+                    "[&_p]:mb-3 [&_p:last-child]:mb-0 [&_a]:underline [&_a]:underline-offset-2"
                   )}
                 >
                   {dream.interpretation ? (
@@ -5537,28 +5570,32 @@ export function DreamCard({ dream, variant = "default", onUpdate, onDelete }: Dr
                       {dream.interpretation}
                     </ReactMarkdown>
                   ) : (
-                    <p className="italic">No interpretation available for this dream.</p>
+                    <p className="italic opacity-70">No interpretation available yet.</p>
                   )}
                 </div>
-              </div>
+              </section>
 
               <DreamscapeSeparator />
 
-              <div>
-                <h3 className="flex items-center gap-2 font-semibold text-purple-200/80 font-display-marcellus tracking-wider mb-3">
+              <section>
+                <h3 className="flex items-center gap-2 font-display-marcellus text-purple-200/80 mb-3 text-[18px] tracking-wide">
                   <Brain className="w-4 h-4" /> Potential Themes
                 </h3>
-                <p className="text-[12px] text-purple-200/55">Pattern analysis coming soon.</p>
-              </div>
+                <p className="text-[12px] text-purple-300/55 italic">
+                  Pattern recognition coming soon.
+                </p>
+              </section>
 
               <DreamscapeSeparator />
 
-              <div>
-                <h3 className="flex items-center gap-2 font-display-marcellus font-semibold text-purple-200/80 tracking-wider mb-3">
+              <section>
+                <h3 className="flex items-center gap-2 font-display-marcellus text-purple-200/80 mb-3 text-[18px] tracking-wide">
                   <LinkIcon className="w-4 h-4" /> Dream Connections
                 </h3>
-                <p className="text-[12px] text-purple-200/55">Cosmic connections feature coming soon.</p>
-              </div>
+                <p className="text-[12px] text-purple-300/55 italic">
+                  Soon you’ll see echoes between your dreams.
+                </p>
+              </section>
             </div>
           </div>
         </DialogContent>
@@ -11209,8 +11246,11 @@ export function useUserStats() {
 # Arquivo: .\lib\auth.ts
 # =================================================================
 
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { isMockSupabase } from './supabase';
+import { supabase } from './supabase/client';
+
+const isMockSupabase =
+  !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 // Mock auth responses for development
 const mockAuthResponse = {
@@ -11222,7 +11262,6 @@ export async function resetPassword(email: string) {
   if (isMockSupabase) {
     return mockAuthResponse;
   }
-  const supabase = createClientComponentClient();
   return supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${window.location.origin}/reset-password`,
   });
@@ -11232,7 +11271,6 @@ export async function signIn(email: string, password: string) {
   if (isMockSupabase) {
     return mockAuthResponse;
   }
-  const supabase = createClientComponentClient();
   return supabase.auth.signInWithPassword({ email, password });
 }
 
@@ -11240,7 +11278,6 @@ export async function signUp(email: string, password: string, name: string) {
   if (isMockSupabase) {
     return mockAuthResponse;
   }
-  const supabase = createClientComponentClient();
   return supabase.auth.signUp({
     email,
     password,
@@ -11254,9 +11291,9 @@ export async function signOut() {
   if (isMockSupabase) {
     return { error: null };
   }
-  const supabase = createClientComponentClient();
   return supabase.auth.signOut();
 }
+
 
 # =================================================================
 # Arquivo: .\lib\database.types.ts
@@ -11327,7 +11364,11 @@ export interface Database {
 # Arquivo: .\lib\db-queries.ts
 # =================================================================
 
-import { supabase, isMockSupabase } from './supabase';
+import { supabase } from './supabase/client';
+
+const isMockSupabase =
+  !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 // Mock data for development
 const mockProfile = {
@@ -11423,6 +11464,7 @@ export async function updateCredits(userId: string, credits: number) {
   if (error) throw error;
 }
 
+
 # =================================================================
 # Arquivo: .\lib\index.ts
 # =================================================================
@@ -11452,6 +11494,118 @@ export const DEVELOPMENT_CONFIG = {
   supabaseUrl: 'https://mock-project-id.supabase.co',
   supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock-key'
 } as const;
+
+# =================================================================
+# Arquivo: .\lib\services\ai-services.ts
+# =================================================================
+
+// ARQUIVO FINAL E ATUALIZADO: lib/services/ai.service.ts
+
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+
+// Definimos a estrutura da resposta que esperamos da IA
+export type DreamAnalysisResult = {
+  isDream: false;
+} | {
+  isDream: true;
+  title: string;
+  mood: 'neutral' | 'happy' | 'sad' | 'anxious' | 'exciting' | 'fearful' | 'confused';
+  tags: string[];
+};
+
+/**
+ * Analisa um texto de entrada para determinar se é um sonho e, em caso afirmativo,
+ * extrai título, humor e tags.
+ * @param userInput O texto digitado pelo usuário.
+ * @returns Um objeto com a análise completa do sonho ou indicando que não é um sonho.
+ */
+export async function analyzeDreamInput(userInput: string): Promise<DreamAnalysisResult> {
+  if (!OPENROUTER_API_KEY) {
+    console.error("[AI Service] OpenRouter API Key não está configurada.");
+    return { isDream: false };
+  }
+
+  if (userInput.trim() === '') {
+    return { isDream: false };
+  }
+  
+  console.log(`[AI Service] Sending input to LLM for full analysis: "${userInput}"`);
+
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-preview-09-2025", 
+        messages: [
+          {
+            role: "system",
+            // ====================== PROMPT ATUALIZADO ======================
+            content: `Você é um assistente de análise de sonhos para o aplicativo Bloomed Dreams. Sua função é analisar a mensagem do usuário e retornar um objeto JSON.
+
+Regras:
+1.  Primeiro, determine se a mensagem é uma descrição de um sonho.
+2.  Se NÃO for um sonho (ex: um cumprimento, uma pergunta), retorne: \`{"isDream": false}\`.
+3.  Se FOR um sonho, retorne um JSON com a seguinte estrutura:
+    - "isDream": true
+    - "title": Um título poético e curto (3 a 7 palavras) para o sonho.
+    - "mood": O sentimento principal do sonho. Escolha UMA das seguintes opções: 'neutral', 'happy', 'sad', 'anxious', 'exciting', 'fearful', 'confused'.
+    - "tags": Um array com 3 a 5 tags (palavras-chave únicas, em minúsculas) que resumem os elementos principais do sonho.
+
+Exemplo de Sonho: "sonhei que estava voando sobre uma cidade de cristal e me sentia livre"
+Sua Resposta: \`{"isDream": true, "title": "Voo sobre a Cidade de Cristal", "mood": "happy", "tags": ["voar", "cidade", "cristal", "liberdade"]}\`
+
+Exemplo de Não-Sonho: "oi tudo bem"
+Sua Resposta: \`{"isDream": false}\``
+            // =================================================================
+          },
+          {
+            role: "user",
+            content: userInput
+          }
+        ],
+        response_format: { "type": "json_object" }, 
+        temperature: 0.2, // Um pouco de criatividade para o título
+      })
+    });
+
+    if (!response.ok) {
+      console.error(`[AI Service] Erro na chamada ao OpenRouter: ${response.status} ${response.statusText}`);
+      return { isDream: false };
+    }
+
+    const data = await response.json();
+    const rawContent = data.choices[0].message.content;
+    console.log(`[AI Service] Raw output from LLM: ${rawContent}`);
+
+    try {
+      const jsonString = rawContent.replace(/```json\n/g, '').replace(/```/g, '');
+      const parsedJson = JSON.parse(jsonString);
+
+      // Se for um sonho, retorne a estrutura completa. Caso contrário, a simples.
+      if (parsedJson.isDream === true) {
+        return {
+          isDream: true,
+          title: parsedJson.title || "Untitled Dream",
+          mood: parsedJson.mood || "neutral",
+          tags: parsedJson.tags || []
+        };
+      } else {
+        return { isDream: false };
+      }
+    } catch (e) {
+      console.error("[AI Service] Failed to parse JSON from LLM.", e);
+      return { isDream: false };
+    }
+    
+  } catch (error) {
+    console.error("[AI Service] Erro de rede ao tentar analisar a mensagem:", error);
+    return { isDream: false };
+  }
+}
 
 # =================================================================
 # Arquivo: .\lib\supabase\client.ts

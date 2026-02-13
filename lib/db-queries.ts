@@ -1,4 +1,8 @@
-import { supabase, isMockSupabase } from './supabase';
+import { supabase } from './supabase/client';
+
+const isMockSupabase =
+  !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 // Mock data for development
 const mockProfile = {
