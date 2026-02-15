@@ -12,7 +12,7 @@ import {
   DialogDescription,
   DialogClose,
 } from "../ui/dialog";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
@@ -76,6 +76,7 @@ function fmtHeader(d: Date) {
 export function DreamCard({ dream, onDelete }: DreamCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   const moodKey = dream.mood || "serene";
   const mood = moodLabels[moodKey] ?? { label: moodKey, emoji: "✨" };
@@ -162,6 +163,10 @@ export function DreamCard({ dream, onDelete }: DreamCardProps) {
 
         {/* MODAL */}
         <DialogContent
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            titleRef.current?.focus();
+          }}
           className={cn(
             "!rounded-2xl overflow-hidden",
             "bg-gradient-to-b from-[#181025] via-[#130f22] to-[#0e0a17]",
@@ -179,7 +184,11 @@ export function DreamCard({ dream, onDelete }: DreamCardProps) {
             )}
           >
             <div className="min-w-0 flex-1 pr-2 text-left">
-              <DialogTitle className="text-xl sm:text-2xl font-display-marcellus text-purple-100 tracking-wide leading-tight">
+              <DialogTitle
+                ref={titleRef}
+                tabIndex={-1}
+                className="text-xl sm:text-2xl font-display-marcellus text-purple-100 tracking-wide leading-tight focus:outline-none"
+              >
                 {dream.title || "Untitled Dream"}
               </DialogTitle>
               <DialogDescription className="text-[11px] text-purple-300/60">
