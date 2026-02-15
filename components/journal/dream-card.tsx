@@ -1,7 +1,7 @@
 // components/journal/dream-card.tsx
 "use client";
 
-import { X, Pencil, Trash2, Zap, Brain, Link as LinkIcon, Star, Moon } from "lucide-react";
+import { X, Trash2, Zap, Brain, Link as LinkIcon, Star, Moon } from "lucide-react";
 import { CardContainer } from "../dashboard/cards/card-container";
 import { Button } from "../ui/button";
 import {
@@ -41,8 +41,7 @@ interface DreamCardProps {
     interpretation?: string | null;
   };
   variant?: "default" | "alt";
-  onUpdate?: (id: string, data: any) => void;
-  onDelete?: (id: string) => void;
+  onDelete?: (id: string) => Promise<void> | void;
 }
 
 // 🌙 linguagem mais simbólica
@@ -74,8 +73,9 @@ function fmtHeader(d: Date) {
   });
 }
 
-export function DreamCard({ dream, variant = "default", onUpdate, onDelete }: DreamCardProps) {
+export function DreamCard({ dream, onDelete }: DreamCardProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const moodKey = dream.mood || "serene";
   const mood = moodLabels[moodKey] ?? { label: moodKey, emoji: "✨" };
@@ -86,6 +86,24 @@ export function DreamCard({ dream, variant = "default", onUpdate, onDelete }: Dr
 
   const preview =
     dream.content.length > 140 ? `${dream.content.slice(0, 140)}…` : dream.content;
+
+  const handleDelete = async () => {
+    if (!onDelete || isDeleting) return;
+
+    const confirmed = window.confirm("Delete this dream? This action cannot be undone.");
+    if (!confirmed) return;
+
+    try {
+      setIsDeleting(true);
+      await onDelete(dream.id);
+      setIsOpen(false);
+    } catch (error) {
+      console.error("Failed to delete dream:", error);
+      window.alert("Could not delete this dream. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <motion.div
@@ -148,29 +166,34 @@ export function DreamCard({ dream, variant = "default", onUpdate, onDelete }: Dr
             "!rounded-2xl overflow-hidden",
             "bg-gradient-to-b from-[#181025] via-[#130f22] to-[#0e0a17]",
             "border border-purple-500/20 shadow-[0_0_64px_-10px_rgba(150,80,255,0.25)]",
-            "p-0 max-w-4xl w-[95vw] h-[90vh] flex flex-col"
+            "p-0 max-w-4xl w-[calc(100vw-1rem)] h-[calc(100vh-1.5rem)] sm:w-[95vw] sm:h-[90vh] flex flex-col",
+            "[&>button]:hidden"
           )}
         >
           <DialogHeader
             className={cn(
-              "sticky top-0 z-10 rounded-t-2xl flex-row items-center justify-between",
-              "p-5 border-b border-purple-500/10",
+              "sticky top-0 z-10 rounded-t-2xl",
+              "flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between",
+              "p-4 sm:p-5 border-b border-purple-500/10",
               "bg-[#181025]/80 backdrop-blur-md"
             )}
           >
             <div className="text-left">
-              <DialogTitle className="text-2xl font-display-marcellus text-purple-100 tracking-wide">
+              <DialogTitle className="text-xl sm:text-2xl font-display-marcellus text-purple-100 tracking-wide leading-tight">
                 {dream.title || "Untitled Dream"}
               </DialogTitle>
               <DialogDescription className="text-[11px] text-purple-300/60">
                 {metaHeader}
               </DialogDescription>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Button variant="ghost" size="icon" className="h-9 w-9 text-purple-300/80 hover:text-purple-100">
-                <Pencil className="w-4 h-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-9 w-9 text-red-400/80 hover:text-red-300">
+            <div className="flex w-full items-center justify-end gap-1.5 sm:w-auto">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-red-400/80 hover:text-red-300"
+                onClick={handleDelete}
+                disabled={isDeleting}
+              >
                 <Trash2 className="w-4 h-4" />
               </Button>
               <DialogClose asChild>
@@ -181,9 +204,9 @@ export function DreamCard({ dream, variant = "default", onUpdate, onDelete }: Dr
             </div>
           </DialogHeader>
 
-          <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-2">
+          <div className="flex-1 overflow-y-auto md:overflow-hidden grid grid-cols-1 md:grid-cols-2">
             {/* Left column */}
-            <div className="p-6 flex flex-col gap-6 md:overflow-y-auto custom-scrollbar">
+            <div className="p-4 sm:p-6 flex flex-col gap-6 md:overflow-y-auto custom-scrollbar">
               <section>
                 <h3 className="flex items-center gap-2 font-display-marcellus text-purple-200/80 mb-3 text-[18px] tracking-wide">
                   <Moon className="w-4 h-4" /> Your Dream
@@ -224,7 +247,7 @@ export function DreamCard({ dream, variant = "default", onUpdate, onDelete }: Dr
             </div>
 
             {/* Right column */}
-            <div className="p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6 md:border-l md:border-purple-500/10 md:pl-6">
+            <div className="p-4 sm:p-6 overflow-visible md:overflow-y-auto custom-scrollbar flex flex-col gap-6 md:border-l md:border-purple-500/10 md:pl-6">
               <section>
                 <h3 className="flex items-center gap-2 font-display-marcellus text-purple-200/80 mb-3 text-[18px] tracking-wide">
                   <Zap className="w-4 h-4" /> Interpretation

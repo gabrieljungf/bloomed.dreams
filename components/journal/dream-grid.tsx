@@ -19,6 +19,7 @@ interface DreamGridProps {
   selectedDateRange?: DateRange;
   selectedTags?: string[];
   sortOrder?: 'newest' | 'oldest';
+  onDelete?: (id: string) => Promise<void> | void;
 }
 
 export function DreamGrid({
@@ -26,7 +27,8 @@ export function DreamGrid({
   searchQuery = '',
   selectedDateRange,
   selectedTags = [],
-  sortOrder = 'newest'
+  sortOrder = 'newest',
+  onDelete,
 }: DreamGridProps) {
   let filteredDreams = dreams;
 
@@ -87,6 +89,7 @@ export function DreamGrid({
             mood: dream.mood || 'neutral',
             interpretation: dream.interpretation ?? null, // <- add
           }}
+          onDelete={onDelete}
         />
       ))}
     </div>

@@ -4641,7 +4641,7 @@ export function EmptyState() {
 
 "use client";
 
-import { useAuth } from '@/components/auth-provider';
+import { useAuth } from '@/components/auth/auth-provider';
 
 export function DashboardHeader(): JSX.Element {
   const { user } = useAuth();
@@ -4658,6 +4658,7 @@ export function DashboardHeader(): JSX.Element {
     </div>
   );
 }
+
 
 # =================================================================
 # Arquivo: .\components\dashboard\profile-banner.tsx
@@ -11217,7 +11218,7 @@ export { useToast, toast };
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/components/auth-provider';
+import { useAuth } from '@/components/auth/auth-provider';
 
 export function useUserStats() {
   const { user } = useAuth();
@@ -11241,6 +11242,7 @@ export function useUserStats() {
 
   return stats;
 }
+
 
 # =================================================================
 # Arquivo: .\lib\auth.ts
@@ -11469,10 +11471,12 @@ export async function updateCredits(userId: string, credits: number) {
 # Arquivo: .\lib\index.ts
 # =================================================================
 
-export * from './services/auth-service';
-export * from './services/profile-service';
-export * from './services/dream-service';
-export * from './config/supabase';
+export * from './auth';
+export * from './db-queries';
+export * from './utils';
+export * from './supabase/client';
+export * from './services/ai-services';
+
 
 # =================================================================
 # Arquivo: .\lib\utils.ts

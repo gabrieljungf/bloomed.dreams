@@ -20,6 +20,7 @@ interface DreamStoreState {
   isLoading: boolean;
   fetchDreams: () => Promise<void>;
   addDream: (newDream: Dream) => void;
+  removeDream: (dreamId: string) => void;
 }
 
 export const useDreamStore = create<DreamStoreState>((set, get) => ({ // Adicionado `get` aqui
@@ -53,6 +54,12 @@ export const useDreamStore = create<DreamStoreState>((set, get) => ({ // Adicion
   addDream: (newDream) => {
     set((state) => ({
       dreams: [newDream, ...state.dreams]
+    }));
+  },
+
+  removeDream: (dreamId) => {
+    set((state) => ({
+      dreams: state.dreams.filter((dream) => dream.id !== dreamId),
     }));
   },
 }));

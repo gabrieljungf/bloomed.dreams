@@ -4,8 +4,6 @@
 
 import { useState, useEffect } from 'react';
 import { Search, Calendar, Tags, SortDesc } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { DreamGrid } from './dream-grid';
 import { motion } from 'framer-motion';
 import {
@@ -26,7 +24,7 @@ const MOCK_AVAILABLE_TAGS = ['flying', 'nature', 'wisdom', 'water', 'light', 'my
 
 export function DreamJournal() {
   const { user } = useAuth();
-  const { dreams, isLoading, fetchDreams } = useDreamStore();
+  const { dreams, isLoading, fetchDreams, removeDream } = useDreamStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDateRange, setSelectedDateRange] = useState<DateRange | undefined>(undefined);
@@ -45,6 +43,20 @@ export function DreamJournal() {
   };
   const handleTagSelect = (tag: string) => {
     setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  };
+
+  const handleDeleteDream = async (dreamId: string) => {
+    const response = await fetch('/api/journal', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: dreamId }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to delete dream');
+    }
+
+    removeDream(dreamId);
   };
 
   if (isLoading) {
@@ -159,6 +171,7 @@ export function DreamJournal() {
           selectedDateRange={selectedDateRange}
           selectedTags={selectedTags}
           sortOrder={sortOrder}
+          onDelete={handleDeleteDream}
         />
       </motion.div>
     </div>
