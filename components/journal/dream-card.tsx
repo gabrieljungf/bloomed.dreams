@@ -173,12 +173,12 @@ export function DreamCard({ dream, onDelete }: DreamCardProps) {
           <DialogHeader
             className={cn(
               "sticky top-0 z-10 rounded-t-2xl",
-              "flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between",
+              "flex-row items-start justify-between gap-3",
               "p-4 sm:p-5 border-b border-purple-500/10",
               "bg-[#181025]/80 backdrop-blur-md"
             )}
           >
-            <div className="text-left">
+            <div className="min-w-0 flex-1 pr-2 text-left">
               <DialogTitle className="text-xl sm:text-2xl font-display-marcellus text-purple-100 tracking-wide leading-tight">
                 {dream.title || "Untitled Dream"}
               </DialogTitle>
@@ -186,7 +186,7 @@ export function DreamCard({ dream, onDelete }: DreamCardProps) {
                 {metaHeader}
               </DialogDescription>
             </div>
-            <div className="flex w-full items-center justify-end gap-1.5 sm:w-auto">
+            <div className="flex shrink-0 items-center gap-1.5">
               <Button
                 variant="ghost"
                 size="icon"
@@ -218,6 +218,28 @@ export function DreamCard({ dream, onDelete }: DreamCardProps) {
 
               <DreamscapeSeparator />
 
+              <section className="md:hidden">
+                <h3 className="flex items-center gap-2 font-display-marcellus text-purple-200/80 mb-3 text-[18px] tracking-wide">
+                  <Zap className="w-4 h-4" /> Interpretation
+                </h3>
+                <div
+                  className={cn(
+                    "text-[13px] leading-6 text-purple-100/85 font-light",
+                    "[&_p]:mb-3 [&_p:last-child]:mb-0 [&_a]:underline [&_a]:underline-offset-2"
+                  )}
+                >
+                  {dream.interpretation ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {dream.interpretation}
+                    </ReactMarkdown>
+                  ) : (
+                    <p className="italic opacity-70">No interpretation available yet.</p>
+                  )}
+                </div>
+              </section>
+
+              <DreamscapeSeparator className="md:hidden" />
+
               <section>
                 <h4 className="flex items-center gap-2 font-display-marcellus text-purple-200/80 mb-3 text-[18px] tracking-wide">
                   <Star className="w-4 h-4" /> Key Symbols & Feelings
@@ -248,7 +270,7 @@ export function DreamCard({ dream, onDelete }: DreamCardProps) {
 
             {/* Right column */}
             <div className="p-4 sm:p-6 overflow-visible md:overflow-y-auto custom-scrollbar flex flex-col gap-6 md:border-l md:border-purple-500/10 md:pl-6">
-              <section>
+              <section className="hidden md:block">
                 <h3 className="flex items-center gap-2 font-display-marcellus text-purple-200/80 mb-3 text-[18px] tracking-wide">
                   <Zap className="w-4 h-4" /> Interpretation
                 </h3>
@@ -268,7 +290,7 @@ export function DreamCard({ dream, onDelete }: DreamCardProps) {
                 </div>
               </section>
 
-              <DreamscapeSeparator />
+              <DreamscapeSeparator className="hidden md:block" />
 
               <section>
                 <h3 className="flex items-center gap-2 font-display-marcellus text-purple-200/80 mb-3 text-[18px] tracking-wide">
